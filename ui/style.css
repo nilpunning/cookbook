@@ -1,0 +1,29 @@
+:root {
+  font-family: serif;
+}
+body {
+  margin: 0 auto;
+  padding: 0 1rem;
+  max-width: 1280px;
+}
+h1, h2 {
+  font-family: sans-serif;
+}
+h2 {
+  font-size: 1.25em;
+  margin-bottom: 0;
+}
+section {
+  margin-top: 2em;
+}
+header {
+  border-bottom: 1px solid #e5e7eb;
+}
+a {
+  font-weight: bold;
+  color:black;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
