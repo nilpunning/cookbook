@@ -16,6 +16,10 @@
 </head>
 <body>
     <h1>Welcome to Hallertau</h1>
-    <p>This is a simple web server using Go and SQLite.</p>
+    <ul>
+        {{range .}}
+        <li>{{.}}</li>
+        {{end}}
+    </ul>
 </body>
 </html>
