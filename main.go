@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/fsnotify/fsnotify"
 	_ "github.com/mattn/go-sqlite3"
@@ -79,6 +79,7 @@ func (s *State) monitorRecipesDirectory() {
 				s.addRecipe(event.Name, entry)
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+				log.Println("Removing recipe:", event.Name)
 				s.deleteRecipe(event.Name)
 			}
 			log.Println("Event:", event)
@@ -115,21 +116,18 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 
+	baseTemplate := template.Must(template.ParseFiles("templates/base.html"))
+	indexTemplate := template.Must(baseTemplate.ParseFiles("templates/index.html"))
+
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles("templates/index.html")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		log.Println(state.recipes)
 		recipeList := make([]string, 0, len(state.recipes))
 		for _, name := range state.recipes {
 			recipeList = append(recipeList, name)
 		}
 		sort.Strings(recipeList)
 
-		err = tmpl.Execute(w, recipeList)
+		err = indexTemplate.Execute(w, recipeList)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}

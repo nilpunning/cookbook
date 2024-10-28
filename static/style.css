@@ -6,7 +6,7 @@ body {
   padding: 0 1rem;
   max-width: 1280px;
 }
-h1, h2 {
+h1, h2, header {
   font-family: "Gill Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 h2 {
@@ -18,6 +18,9 @@ section {
 }
 header {
   border-bottom: 1px solid #e5e7eb;
+}
+header:hover a {
+  text-decoration: none;
 }
 a {
   font-weight: bold;
