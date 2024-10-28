@@ -60,16 +60,8 @@ func (s *State) monitorRecipesDirectory() {
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(".")
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	err = watcher.Add(s.recipesPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return
-		}
 		log.Fatal(err)
 	}
 
@@ -79,28 +71,15 @@ func (s *State) monitorRecipesDirectory() {
 			if !ok {
 				return
 			}
-			if event.Name == s.recipesPath {
-				log.Println("Recipes path event:", event)
-				if event.Has(fsnotify.Create) {
-					err = watcher.Add(s.recipesPath)
-					if err != nil {
-						log.Fatal(err)
-					}
+			if event.Has(fsnotify.Create) {
+				entry, err := os.Stat(event.Name)
+				if err != nil {
+					log.Fatal(err)
 				}
-				if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-					watcher.Remove(s.recipesPath)
-				}
-			} else {
-				if event.Has(fsnotify.Create) {
-					entry, err := os.Stat(event.Name)
-					if err != nil {
-						log.Fatal(err)
-					}
-					s.addRecipe(event.Name, entry)
-				}
-				if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-					s.deleteRecipe(event.Name)
-				}
+				s.addRecipe(event.Name, entry)
+			}
+			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+				s.deleteRecipe(event.Name)
 			}
 			log.Println("Event:", event)
 		case err, ok := <-watcher.Errors:
@@ -113,6 +92,8 @@ func (s *State) monitorRecipesDirectory() {
 }
 
 func main() {
+	// Recipes path must be a folder that exists, if it doesn't exist or is deleted after the
+	// program starts, recipe changes will not be monitored.
 	log.Println("Recipes path:", os.Args[1])
 	var state = State{
 		recipesPath: os.Args[1],
