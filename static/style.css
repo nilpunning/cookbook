@@ -7,15 +7,16 @@ body {
   max-width: 1280px;
 }
 h1, h2, header {
+  font-size: 1rem;
   font-weight: bold;
   font-family: "Gill Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
-h2 {
-  font-size: 1.25em;
-  margin-bottom: 0;
+h1 {
+  font-size: 1.5rem;
 }
-section {
-  margin-top: 2em;
+h2 {
+  font-size: 1.25rem;
+  margin-bottom: 0;
 }
 header {
   border-bottom: 1px solid #e5e7eb;
@@ -25,6 +26,9 @@ header:hover a {
 }
 header, main {
   margin: 1rem;
+}
+section {
+  margin-top: 2rem;
 }
 a {
   color:black;

@@ -185,11 +185,11 @@ func main() {
 		webpath := r.PathValue("path")
 
 		row := state.db.QueryRow(`
-			SELECT filename FROM recipe WHERE webpath = ?
+			SELECT filename, name FROM recipe WHERE webpath = ?
 		`, webpath)
 
-		var filename string
-		switch err := row.Scan(&filename); err {
+		var filename, name string
+		switch err := row.Scan(&filename, &name); err {
 		case sql.ErrNoRows:
 			http.Error(w, "Recipe not found", http.StatusNotFound)
 		case nil:
@@ -213,6 +213,7 @@ func main() {
 			}
 			err = recipeTemplate.Execute(w, map[string]any{
 				"Title": "Recipes",
+				"Name":  name,
 				"Body":  string(body),
 			})
 			if err != nil {
