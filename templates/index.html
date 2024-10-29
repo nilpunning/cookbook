@@ -1,7 +1,5 @@
-{{define "body"}}
-<ul>
-    {{range .Recipes}}
-    <li><a href="/{{.Url}}">{{.Name}}</a></li>
-    {{end}}
-</ul>
+{{define "Body"}}
+{{range .Recipes}}
+<p><a href="/recipe/{{.Webpath}}">{{.Name}}</a></p>
+{{end}}
 {{end}}

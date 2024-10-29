@@ -23,6 +23,9 @@ header {
 header:hover a {
   text-decoration: none;
 }
+header, main {
+  margin: 1rem;
+}
 a {
   color:black;
   text-decoration: none;

@@ -27,16 +27,16 @@ func (s *State) isRecipe(entry fs.FileInfo) bool {
 	return !entry.IsDir() && strings.HasSuffix(entry.Name(), s.recipeExt)
 }
 
-func (s *State) addRecipe(path string, entry fs.FileInfo) {
+func (s *State) addRecipe(filename string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
 		var name = strings.TrimSuffix(entry.Name(), s.recipeExt)
 		var title = cases.Title(language.English, cases.Compact).String(name)
 		_, err := s.db.Exec(`
-			INSERT INTO recipe (filepath, name, url)
+			INSERT INTO recipe (filename, name, webpath)
 			VALUES (?, ?, ?)
-		`, path, name, strings.ReplaceAll(title, " ", "")+".html")
+		`, filename, name, strings.ReplaceAll(title, " ", "")+".html")
 		if err != nil {
-			log.Printf("Error inserting recipe %s: %v", path, err)
+			log.Printf("Error inserting recipe %s: %v", filename, err)
 			return
 		}
 	}
@@ -44,7 +44,7 @@ func (s *State) addRecipe(path string, entry fs.FileInfo) {
 
 func (s *State) deleteRecipe(path string) {
 	_, err := s.db.Exec(`
-		DELETE FROM recipe WHERE filepath = ?
+		DELETE FROM recipe WHERE filename = ?
 	`, path)
 	if err != nil {
 		log.Printf("Error deleting recipe %s: %v", path, err)
@@ -52,11 +52,8 @@ func (s *State) deleteRecipe(path string) {
 }
 
 func (s *State) loadRecipes() {
-	entries, err := os.ReadDir("recipes")
+	entries, err := os.ReadDir(s.recipesPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return
-		}
 		log.Fatal(err)
 	}
 
@@ -65,7 +62,7 @@ func (s *State) loadRecipes() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		s.addRecipe(filepath.Join("recipes", entry.Name()), info)
+		s.addRecipe(entry.Name(), info)
 	}
 }
 
@@ -87,15 +84,16 @@ func (s *State) monitorRecipesDirectory() {
 			if !ok {
 				return
 			}
+			filename := filepath.Base(event.Name)
 			if event.Has(fsnotify.Create) {
 				entry, err := os.Stat(event.Name)
 				if err != nil {
 					log.Fatal(err)
 				}
-				s.addRecipe(event.Name, entry)
+				s.addRecipe(filename, entry)
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-				s.deleteRecipe(event.Name)
+				s.deleteRecipe(filename)
 			}
 			log.Println("Event:", event)
 		case err, ok := <-watcher.Errors:
@@ -113,7 +111,7 @@ func main() {
 	log.Println("Recipes path:", os.Args[1])
 
 	// Open SQLite database
-	db, err := sql.Open("sqlite3", ":memory:?cache=shared")
+	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -122,9 +120,9 @@ func main() {
 	// Create recipe table
 	_, err = db.Exec(`
 		CREATE TABLE recipe (
-			filepath TEXT NOT NULL PRIMARY KEY,
+			filename TEXT NOT NULL PRIMARY KEY,
 			name TEXT NOT NULL,
-			url TEXT NOT NULL
+			webpath TEXT NOT NULL
 		)
 	`)
 	if err != nil {
@@ -144,13 +142,13 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 
-	baseTemplate := template.Must(template.ParseFiles("templates/base.html"))
-	indexTemplate := template.Must(baseTemplate.ParseFiles("templates/index.html"))
+	indexTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/index.html"))
+	recipeTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/recipe.html"))
 
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		rows, err := state.db.Query(`
-			SELECT filepath, name, url FROM recipe order by name
+			SELECT name, webpath FROM recipe order by name
 		`)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -159,30 +157,68 @@ func main() {
 
 		var recipes []map[string]string
 		for rows.Next() {
-			var filepath, name, url string
-			err := rows.Scan(&filepath, &name, &url)
+			var name, webpath string
+			err := rows.Scan(&name, &webpath)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			recipes = append(recipes, map[string]string{
-				"Filepath": filepath,
-				"Name":     name,
-				"Url":      url,
+				"Name":    name,
+				"Webpath": webpath,
 			})
 		}
 		if err = rows.Err(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		log.Println(recipes)
-
 		err = indexTemplate.Execute(w, map[string]any{
 			"Title":   "Recipes",
 			"Recipes": recipes,
 		})
 		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	http.HandleFunc("/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
+		webpath := r.PathValue("path")
+
+		row := state.db.QueryRow(`
+			SELECT filename FROM recipe WHERE webpath = ?
+		`, webpath)
+
+		var filename string
+		switch err := row.Scan(&filename); err {
+		case sql.ErrNoRows:
+			http.Error(w, "Recipe not found", http.StatusNotFound)
+		case nil:
+			log.Println("Opening recipe file:", filename)
+			file, err := os.DirFS(state.recipesPath).Open(filename)
+			if err != nil {
+				log.Println("Error opening recipe file:", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			info, err := file.Stat()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			body := make([]byte, info.Size())
+			_, err = file.Read(body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			err = recipeTemplate.Execute(w, map[string]any{
+				"Title": "Recipes",
+				"Body":  string(body),
+			})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})

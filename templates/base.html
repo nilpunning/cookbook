@@ -16,11 +16,13 @@
     <script src="/vendor/htmx.js"></script>
 </head>
 <body>
-    <header style="margin: 1rem;">
+    <header>
         <a href="/">Recipes</a>
     </header>
-    {{block "body" .}}
-    body
-    {{end}}
+    <main>
+        {{block "Body" .}}
+        body
+        {{end}}
+    </main>
 </body>
 </html>
