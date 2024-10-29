@@ -11,13 +11,21 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/fsnotify/fsnotify"
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type Recipe struct {
+	Name string
+	URL  string
+}
+
 type State struct {
 	recipesPath string
-	recipes     map[string]string
+	recipes     map[string]Recipe
 	recipeExt   string
 }
 
@@ -27,7 +35,12 @@ func (s *State) isRecipe(entry fs.FileInfo) bool {
 
 func (s *State) addRecipe(path string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
-		s.recipes[path] = strings.TrimSuffix(entry.Name(), s.recipeExt)
+		var name = strings.TrimSuffix(entry.Name(), s.recipeExt)
+		var title = cases.Title(language.English, cases.Compact).String(name)
+		s.recipes[path] = Recipe{
+			Name: name,
+			URL:  strings.ReplaceAll(title, " ", "") + ".html",
+		}
 	}
 }
 
@@ -79,7 +92,6 @@ func (s *State) monitorRecipesDirectory() {
 				s.addRecipe(event.Name, entry)
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-				log.Println("Removing recipe:", event.Name)
 				s.deleteRecipe(event.Name)
 			}
 			log.Println("Event:", event)
@@ -98,12 +110,12 @@ func main() {
 	log.Println("Recipes path:", os.Args[1])
 	var state = State{
 		recipesPath: os.Args[1],
-		recipes:     map[string]string{},
+		recipes:     map[string]Recipe{},
 		recipeExt:   ".md",
 	}
 
 	// Open SQLite database
-	db, err := sql.Open("sqlite3", "./database.db")
+	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -121,13 +133,18 @@ func main() {
 
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		recipeList := make([]string, 0, len(state.recipes))
-		for _, name := range state.recipes {
-			recipeList = append(recipeList, name)
+		recipeList := make([]Recipe, 0, len(state.recipes))
+		for _, recipe := range state.recipes {
+			recipeList = append(recipeList, recipe)
 		}
-		sort.Strings(recipeList)
+		sort.Slice(recipeList, func(i, j int) bool {
+			return recipeList[i].Name < recipeList[j].Name
+		})
 
-		err = indexTemplate.Execute(w, recipeList)
+		err = indexTemplate.Execute(w, map[string]any{
+			"Title":   "Recipes",
+			"Recipes": recipeList,
+		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}

@@ -1,11 +1,7 @@
-{{define "title"}}
-Recipes
-{{end}}
-
 {{define "body"}}
 <ul>
-    {{range .}}
-    <li>{{.}}</li>
+    {{range .Recipes}}
+    <li><a href="/{{.URL}}">{{.Name}}</a></li>
     {{end}}
 </ul>
 {{end}}
