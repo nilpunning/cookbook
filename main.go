@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -18,14 +17,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type Recipe struct {
-	Name string
-	URL  string
-}
-
 type State struct {
+	db          *sql.DB
 	recipesPath string
-	recipes     map[string]Recipe
 	recipeExt   string
 }
 
@@ -37,15 +31,24 @@ func (s *State) addRecipe(path string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
 		var name = strings.TrimSuffix(entry.Name(), s.recipeExt)
 		var title = cases.Title(language.English, cases.Compact).String(name)
-		s.recipes[path] = Recipe{
-			Name: name,
-			URL:  strings.ReplaceAll(title, " ", "") + ".html",
+		_, err := s.db.Exec(`
+			INSERT INTO recipe (filepath, name, url)
+			VALUES (?, ?, ?)
+		`, path, name, strings.ReplaceAll(title, " ", "")+".html")
+		if err != nil {
+			log.Printf("Error inserting recipe %s: %v", path, err)
+			return
 		}
 	}
 }
 
 func (s *State) deleteRecipe(path string) {
-	delete(s.recipes, path)
+	_, err := s.db.Exec(`
+		DELETE FROM recipe WHERE filepath = ?
+	`, path)
+	if err != nil {
+		log.Printf("Error deleting recipe %s: %v", path, err)
+	}
 }
 
 func (s *State) loadRecipes() {
@@ -108,18 +111,31 @@ func main() {
 	// Recipes path must be a folder that exists, if it doesn't exist or is deleted after the
 	// program starts, recipe changes will not be monitored.
 	log.Println("Recipes path:", os.Args[1])
-	var state = State{
-		recipesPath: os.Args[1],
-		recipes:     map[string]Recipe{},
-		recipeExt:   ".md",
-	}
 
 	// Open SQLite database
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite3", ":memory:?cache=shared")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	// Create recipe table
+	_, err = db.Exec(`
+		CREATE TABLE recipe (
+			filepath TEXT NOT NULL PRIMARY KEY,
+			name TEXT NOT NULL,
+			url TEXT NOT NULL
+		)
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var state = State{
+		db:          db,
+		recipesPath: os.Args[1],
+		recipeExt:   ".md",
+	}
 
 	state.loadRecipes()
 	go state.monitorRecipesDirectory()
@@ -133,17 +149,38 @@ func main() {
 
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		recipeList := make([]Recipe, 0, len(state.recipes))
-		for _, recipe := range state.recipes {
-			recipeList = append(recipeList, recipe)
+		rows, err := state.db.Query(`
+			SELECT filepath, name, url FROM recipe order by name
+		`)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		sort.Slice(recipeList, func(i, j int) bool {
-			return recipeList[i].Name < recipeList[j].Name
-		})
+		defer rows.Close()
+
+		var recipes []map[string]string
+		for rows.Next() {
+			var filepath, name, url string
+			err := rows.Scan(&filepath, &name, &url)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			recipes = append(recipes, map[string]string{
+				"Filepath": filepath,
+				"Name":     name,
+				"Url":      url,
+			})
+		}
+		if err = rows.Err(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		log.Println(recipes)
 
 		err = indexTemplate.Execute(w, map[string]any{
 			"Title":   "Recipes",
-			"Recipes": recipeList,
+			"Recipes": recipes,
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
