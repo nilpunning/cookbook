@@ -34,14 +34,42 @@ func (s *State) isRecipe(entry fs.FileInfo) bool {
 	return !entry.IsDir() && strings.HasSuffix(entry.Name(), s.recipeExt)
 }
 
-func (s *State) addRecipe(filename string, entry fs.FileInfo) {
+func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
 		var name = strings.TrimSuffix(entry.Name(), s.recipeExt)
 		var title = cases.Title(language.English, cases.Compact).String(name)
-		_, err := s.db.Exec(`
-			INSERT INTO recipe (filename, name, webpath)
-			VALUES (?, ?, ?)
-		`, filename, name, strings.ReplaceAll(title, " ", "")+".html")
+		gMarkdown := goldmark.New(
+			goldmark.WithExtensions(extension.GFM, markdown.Tags),
+			goldmark.WithRendererOptions(html.WithHardWraps()),
+		)
+
+		file, err := os.DirFS(s.recipesPath).Open(filename)
+		if err != nil {
+			log.Println("Error opening recipe file:", err)
+			return
+		}
+		var md bytes.Buffer
+		if _, err = md.ReadFrom(file); err != nil {
+			log.Println("Error reading recipe file:", err)
+			return
+		}
+		var html bytes.Buffer
+		pc := parser.NewContext()
+		if err := gMarkdown.Convert(md.Bytes(), &html, parser.WithContext(pc)); err != nil {
+			log.Println("Error converting recipe file:", err)
+			return
+		}
+
+		tags := pc.Get(markdown.TagsContextKey).([]string)
+		log.Println(tags)
+
+		webpath := strings.ReplaceAll(title, " ", "") + ".html"
+		_, err = s.db.Exec(`
+			INSERT INTO recipe (filename, name, webpath, html)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT(filename) DO UPDATE SET name = ?, webpath = ?, html = ?
+		`, filename, name, webpath, html.String(), name, webpath, html.String())
+
 		if err != nil {
 			log.Printf("Error inserting recipe %s: %v", filename, err)
 			return
@@ -69,7 +97,7 @@ func (s *State) loadRecipes() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		s.addRecipe(entry.Name(), info)
+		s.upsertRecipe(entry.Name(), info)
 	}
 }
 
@@ -92,12 +120,12 @@ func (s *State) monitorRecipesDirectory() {
 				return
 			}
 			filename := filepath.Base(event.Name)
-			if event.Has(fsnotify.Create) {
+			if event.Has(fsnotify.Create) || event.Has(fsnotify.Write) {
 				entry, err := os.Stat(event.Name)
 				if err != nil {
 					log.Fatal(err)
 				}
-				s.addRecipe(filename, entry)
+				s.upsertRecipe(filename, entry)
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
 				s.deleteRecipe(filename)
@@ -129,8 +157,18 @@ func main() {
 		CREATE TABLE recipe (
 			filename TEXT NOT NULL PRIMARY KEY,
 			name TEXT NOT NULL,
-			webpath TEXT NOT NULL
-		)
+			webpath TEXT NOT NULL,
+			html TEXT NOT NULL
+		);
+		CREATE INDEX idx_recipe_webpath ON recipe (webpath);
+		CREATE TABLE tag (
+			name TEXT NOT NULL PRIMARY KEY
+		);
+		CREATE TABLE recipe_tag (
+			recipe_filename TEXT NOT NULL,
+			tag_name TEXT NOT NULL,
+			PRIMARY KEY (recipe_filename, tag_name)
+		);
 	`)
 	if err != nil {
 		log.Fatal(err)
@@ -151,11 +189,6 @@ func main() {
 
 	indexTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/index.html"))
 	recipeTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/recipe.html"))
-
-	goldmark := goldmark.New(
-		goldmark.WithExtensions(extension.GFM, markdown.Tags),
-		goldmark.WithRendererOptions(html.WithHardWraps()),
-	)
 
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
@@ -197,34 +230,14 @@ func main() {
 		webpath := r.PathValue("path")
 
 		row := state.db.QueryRow(`
-			SELECT filename, name FROM recipe WHERE webpath = ?
+			SELECT filename, name, html FROM recipe WHERE webpath = ?
 		`, webpath)
 
-		var filename, name string
-		switch err := row.Scan(&filename, &name); err {
+		var filename, name, html string
+		switch err := row.Scan(&filename, &name, &html); err {
 		case sql.ErrNoRows:
 			http.Error(w, "Recipe not found", http.StatusNotFound)
 		case nil:
-			file, err := os.DirFS(state.recipesPath).Open(filename)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			var md bytes.Buffer
-			if _, err = md.ReadFrom(file); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			var html bytes.Buffer
-			pc := parser.NewContext()
-			if err := goldmark.Convert(md.Bytes(), &html, parser.WithContext(pc)); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			tags := pc.Get(markdown.TagsContextKey).([]string)
-			log.Println(tags)
-
 			data := struct {
 				Title string
 				Name  string
@@ -232,7 +245,7 @@ func main() {
 			}{
 				Title: "Recipes",
 				Name:  name,
-				Body:  template.HTML(html.String()),
+				Body:  template.HTML(html),
 			}
 			if err := recipeTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
