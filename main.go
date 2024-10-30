@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"html/template"
 	"io/fs"
@@ -10,11 +11,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/renderer/html"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
 	"github.com/fsnotify/fsnotify"
 	_ "github.com/mattn/go-sqlite3"
+
+	"hallertau/internal/markdown"
 )
 
 type State struct {
@@ -145,6 +151,11 @@ func main() {
 	indexTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/index.html"))
 	recipeTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/recipe.html"))
 
+	markdown := goldmark.New(
+		goldmark.WithExtensions(extension.GFM, markdown.Tags),
+		goldmark.WithRendererOptions(html.WithHardWraps()),
+	)
+
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		rows, err := state.db.Query(`
@@ -193,30 +204,31 @@ func main() {
 		case sql.ErrNoRows:
 			http.Error(w, "Recipe not found", http.StatusNotFound)
 		case nil:
-			log.Println("Opening recipe file:", filename)
 			file, err := os.DirFS(state.recipesPath).Open(filename)
 			if err != nil {
-				log.Println("Error opening recipe file:", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			info, err := file.Stat()
-			if err != nil {
+			var md bytes.Buffer
+			if _, err = md.ReadFrom(file); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			body := make([]byte, info.Size())
-			_, err = file.Read(body)
-			if err != nil {
+			var html bytes.Buffer
+			if err := markdown.Convert(md.Bytes(), &html); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			err = recipeTemplate.Execute(w, map[string]any{
-				"Title": "Recipes",
-				"Name":  name,
-				"Body":  string(body),
-			})
-			if err != nil {
+			data := struct {
+				Title string
+				Name  string
+				Body  template.HTML
+			}{
+				Title: "Recipes",
+				Name:  name,
+				Body:  template.HTML(html.String()),
+			}
+			if err := recipeTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		default:
