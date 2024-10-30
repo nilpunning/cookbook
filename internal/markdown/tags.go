@@ -38,6 +38,8 @@ func (t *tagsParser) Trigger() []byte {
 	return []byte{' '}
 }
 
+var TagsContextKey = parser.NewContextKey()
+
 func (t *tagsParser) Parse(parent ast.Node, reader text.Reader, pc parser.Context) ast.Node {
 	line, _ := reader.PeekLine()
 
@@ -47,14 +49,16 @@ func (t *tagsParser) Parse(parent ast.Node, reader text.Reader, pc parser.Contex
 
 	reader.AdvanceLine()
 
-	tag := strings.Split(string(line[5:]), ",")
-	for i := range tag {
-		tag[i] = strings.TrimSpace(tag[i])
+	tags := strings.Split(string(line[5:]), ",")
+	for i := range tags {
+		tags[i] = strings.TrimSpace(tags[i])
 	}
+
+	pc.Set(TagsContextKey, tags)
 
 	return &TagsNode{
 		BaseInline: ast.BaseInline{},
-		Tags:       tag,
+		Tags:       tags,
 	}
 }
 
@@ -70,7 +74,7 @@ func NewTagRenderer() renderer.NodeRenderer {
 
 func (r *TagsRenderer) renderTags(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if entering {
-		_, _ = w.WriteString("<div class=\"tags\">tags: ")
+		_, _ = w.WriteString("<div class=\"tags\">")
 		for _, tag := range n.(*TagsNode).Tags {
 			_, _ = w.WriteString("<span class=\"tag\">" + tag + " </span>")
 		}

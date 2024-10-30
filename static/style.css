@@ -37,3 +37,8 @@ a {
 a:hover {
   text-decoration: underline;
 }
+.tag {
+  outline: 1px solid #e5e7eb;
+  margin-right: 0.25rem;
+  padding: 0.25rem;
+}

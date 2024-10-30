@@ -13,6 +13,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -151,7 +152,7 @@ func main() {
 	indexTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/index.html"))
 	recipeTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/recipe.html"))
 
-	markdown := goldmark.New(
+	goldmark := goldmark.New(
 		goldmark.WithExtensions(extension.GFM, markdown.Tags),
 		goldmark.WithRendererOptions(html.WithHardWraps()),
 	)
@@ -215,10 +216,15 @@ func main() {
 				return
 			}
 			var html bytes.Buffer
-			if err := markdown.Convert(md.Bytes(), &html); err != nil {
+			pc := parser.NewContext()
+			if err := goldmark.Convert(md.Bytes(), &html, parser.WithContext(pc)); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
+			tags := pc.Get(markdown.TagsContextKey).([]string)
+			log.Println(tags)
+
 			data := struct {
 				Title string
 				Name  string
