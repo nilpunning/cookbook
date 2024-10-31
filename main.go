@@ -60,19 +60,45 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 			return
 		}
 
-		tags := pc.Get(markdown.TagsContextKey).([]string)
-		log.Println(tags)
+		tags := []string{}
+		if t := pc.Get(markdown.TagsContextKey); t != nil {
+			tags = t.([]string)
+		}
 
 		webpath := strings.ReplaceAll(title, " ", "") + ".html"
-		_, err = s.db.Exec(`
-			INSERT INTO recipe (filename, name, webpath, html)
-			VALUES (?, ?, ?, ?)
-			ON CONFLICT(filename) DO UPDATE SET name = ?, webpath = ?, html = ?
-		`, filename, name, webpath, html.String(), name, webpath, html.String())
 
+		tx, err := s.db.Begin()
 		if err != nil {
-			log.Printf("Error inserting recipe %s: %v", filename, err)
+			log.Println("Error beginning transaction:", err)
 			return
+		}
+		if _, err := tx.Exec(`
+				INSERT INTO recipe (filename, name, webpath, html)
+				VALUES (?, ?, ?, ?)
+				ON CONFLICT(filename) DO UPDATE SET name = ?, webpath = ?, html = ?;
+				DELETE FROM recipe_tag WHERE recipe_filename = ?
+			`,
+			filename, name, webpath, html.String(),
+			name, webpath, html.String(),
+			filename); err != nil {
+			log.Printf("Error inserting recipe %s: %v", filename, err)
+			tx.Rollback()
+			return
+		}
+
+		for _, tag := range tags {
+			if _, err := tx.Exec(`
+				INSERT INTO recipe_tag (recipe_filename, tag_name) VALUES (?, ?)
+				ON CONFLICT(recipe_filename, tag_name) DO NOTHING
+			`, filename, tag); err != nil {
+				log.Printf("Error inserting recipe tag %s: %v", tag, err)
+				tx.Rollback()
+				return
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			log.Printf("Error committing transaction for recipe %s: %v", filename, err)
 		}
 	}
 }
@@ -161,9 +187,6 @@ func main() {
 			html TEXT NOT NULL
 		);
 		CREATE INDEX idx_recipe_webpath ON recipe (webpath);
-		CREATE TABLE tag (
-			name TEXT NOT NULL PRIMARY KEY
-		);
 		CREATE TABLE recipe_tag (
 			recipe_filename TEXT NOT NULL,
 			tag_name TEXT NOT NULL,
@@ -192,36 +215,78 @@ func main() {
 
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := state.db.Query(`
-			SELECT name, webpath FROM recipe order by name
+		tx, err := state.db.Begin()
+		if err != nil {
+			log.Println("Error beginning transaction:", err)
+			return
+		}
+		defer tx.Commit()
+
+		tagRows, err := tx.Query(`
+			SELECT DISTINCT tag_name FROM recipe_tag ORDER BY tag_name
 		`)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		defer rows.Close()
+		defer tagRows.Close()
 
-		var recipes []map[string]string
-		for rows.Next() {
-			var name, webpath string
-			err := rows.Scan(&name, &webpath)
+		type tag struct {
+			Tag     string
+			Recipes []map[string]string
+		}
+		var tags []tag
+		for tagRows.Next() {
+			t := tag{}
+			err := tagRows.Scan(&t.Tag)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			recipes = append(recipes, map[string]string{
-				"Name":    name,
-				"Webpath": webpath,
-			})
+			tags = append(tags, t)
 		}
-		if err = rows.Err(); err != nil {
+		if err = tagRows.Err(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		err = indexTemplate.Execute(w, map[string]any{
-			"Title":   "Recipes",
-			"Recipes": recipes,
-		})
-		if err != nil {
+
+		for i, tag := range tags {
+			recipeRows, err := tx.Query(`
+				SELECT name, webpath FROM recipe
+				JOIN recipe_tag ON recipe.filename = recipe_tag.recipe_filename
+				WHERE recipe_tag.tag_name = ?
+				ORDER BY name
+			`, tag.Tag)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer recipeRows.Close()
+
+			tag.Recipes = []map[string]string{}
+			for recipeRows.Next() {
+				var name, webpath string
+				err := recipeRows.Scan(&name, &webpath)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				tag.Recipes = append(tag.Recipes, map[string]string{
+					"Name":    name,
+					"Webpath": webpath,
+				})
+			}
+			if err = recipeRows.Err(); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			tags[i] = tag
+		}
+
+		if err := indexTemplate.Execute(w, map[string]any{
+			"Title": "Recipes",
+			"Tags":  tags,
+		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})

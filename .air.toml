@@ -5,7 +5,7 @@ tmp_dir = "tmp"
   cmd = "go build -o ./tmp/main ."
   bin = "./tmp/main $(pwd)/recipes"
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "recipes"]
   include_ext = ["go", "tpl", "tmpl", "html"]
   exclude_regex = ["_test\\.go"]
 

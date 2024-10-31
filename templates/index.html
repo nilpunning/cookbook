@@ -1,5 +1,8 @@
 {{define "Body"}}
-{{range .Recipes}}
-<p><a href="/recipe/{{.Webpath}}">{{.Name}}</a></p>
-{{end}}
+    {{range .Tags}}
+        <h1>{{.Tag}}</h1>
+        {{range .Recipes}}
+            <p><a href="/recipe/{{.Webpath}}">{{.Name}}</a></p>
+        {{end}}
+    {{end}}
 {{end}}
