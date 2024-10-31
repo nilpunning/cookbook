@@ -19,8 +19,8 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/fsnotify/fsnotify"
-	_ "github.com/mattn/go-sqlite3"
 
+	"hallertau/internal/database"
 	"hallertau/internal/markdown"
 )
 
@@ -65,50 +65,13 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 			tags = t.([]string)
 		}
 
+		if len(tags) == 0 {
+			tags = []string{"Other"}
+		}
+
 		webpath := strings.ReplaceAll(title, " ", "") + ".html"
 
-		tx, err := s.db.Begin()
-		if err != nil {
-			log.Println("Error beginning transaction:", err)
-			return
-		}
-		if _, err := tx.Exec(`
-				INSERT INTO recipe (filename, name, webpath, html)
-				VALUES (?, ?, ?, ?)
-				ON CONFLICT(filename) DO UPDATE SET name = ?, webpath = ?, html = ?;
-				DELETE FROM recipe_tag WHERE recipe_filename = ?
-			`,
-			filename, name, webpath, html.String(),
-			name, webpath, html.String(),
-			filename); err != nil {
-			log.Printf("Error inserting recipe %s: %v", filename, err)
-			tx.Rollback()
-			return
-		}
-
-		for _, tag := range tags {
-			if _, err := tx.Exec(`
-				INSERT INTO recipe_tag (recipe_filename, tag_name) VALUES (?, ?)
-				ON CONFLICT(recipe_filename, tag_name) DO NOTHING
-			`, filename, tag); err != nil {
-				log.Printf("Error inserting recipe tag %s: %v", tag, err)
-				tx.Rollback()
-				return
-			}
-		}
-
-		if err := tx.Commit(); err != nil {
-			log.Printf("Error committing transaction for recipe %s: %v", filename, err)
-		}
-	}
-}
-
-func (s *State) deleteRecipe(path string) {
-	_, err := s.db.Exec(`
-		DELETE FROM recipe WHERE filename = ?
-	`, path)
-	if err != nil {
-		log.Printf("Error deleting recipe %s: %v", path, err)
+		database.UpsertRecipe(s.db, filename, name, webpath, html.String(), tags)
 	}
 }
 
@@ -154,7 +117,7 @@ func (s *State) monitorRecipesDirectory() {
 				s.upsertRecipe(filename, entry)
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-				s.deleteRecipe(filename)
+				database.DeleteRecipe(s.db, filename)
 			}
 			log.Println("Event:", event)
 		case err, ok := <-watcher.Errors:
@@ -171,37 +134,12 @@ func main() {
 	// program starts, recipe changes will not be monitored.
 	log.Println("Recipes path:", os.Args[1])
 
-	// Open SQLite database
-	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	// Create recipe table
-	_, err = db.Exec(`
-		CREATE TABLE recipe (
-			filename TEXT NOT NULL PRIMARY KEY,
-			name TEXT NOT NULL,
-			webpath TEXT NOT NULL,
-			html TEXT NOT NULL
-		);
-		CREATE INDEX idx_recipe_webpath ON recipe (webpath);
-		CREATE TABLE recipe_tag (
-			recipe_filename TEXT NOT NULL,
-			tag_name TEXT NOT NULL,
-			PRIMARY KEY (recipe_filename, tag_name)
-		);
-	`)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	var state = State{
-		db:          db,
+		db:          database.Setup(),
 		recipesPath: os.Args[1],
 		recipeExt:   ".md",
 	}
+	defer state.db.Close()
 
 	state.loadRecipes()
 	go state.monitorRecipesDirectory()
@@ -215,72 +153,10 @@ func main() {
 
 	// Serve the Go template
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		tx, err := state.db.Begin()
-		if err != nil {
-			log.Println("Error beginning transaction:", err)
-			return
-		}
-		defer tx.Commit()
-
-		tagRows, err := tx.Query(`
-			SELECT DISTINCT tag_name FROM recipe_tag ORDER BY tag_name
-		`)
+		tags, err := database.GetRecipesGroupedByTag(state.db)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
-		}
-		defer tagRows.Close()
-
-		type tag struct {
-			Tag     string
-			Recipes []map[string]string
-		}
-		var tags []tag
-		for tagRows.Next() {
-			t := tag{}
-			err := tagRows.Scan(&t.Tag)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			tags = append(tags, t)
-		}
-		if err = tagRows.Err(); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		for i, tag := range tags {
-			recipeRows, err := tx.Query(`
-				SELECT name, webpath FROM recipe
-				JOIN recipe_tag ON recipe.filename = recipe_tag.recipe_filename
-				WHERE recipe_tag.tag_name = ?
-				ORDER BY name
-			`, tag.Tag)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			defer recipeRows.Close()
-
-			tag.Recipes = []map[string]string{}
-			for recipeRows.Next() {
-				var name, webpath string
-				err := recipeRows.Scan(&name, &webpath)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				tag.Recipes = append(tag.Recipes, map[string]string{
-					"Name":    name,
-					"Webpath": webpath,
-				})
-			}
-			if err = recipeRows.Err(); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			tags[i] = tag
 		}
 
 		if err := indexTemplate.Execute(w, map[string]any{
@@ -294,12 +170,8 @@ func main() {
 	http.HandleFunc("/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
 		webpath := r.PathValue("path")
 
-		row := state.db.QueryRow(`
-			SELECT filename, name, html FROM recipe WHERE webpath = ?
-		`, webpath)
-
-		var filename, name, html string
-		switch err := row.Scan(&filename, &name, &html); err {
+		var name, html, err = database.GetRecipe(state.db, webpath)
+		switch err {
 		case sql.ErrNoRows:
 			http.Error(w, "Recipe not found", http.StatusNotFound)
 		case nil:
@@ -322,7 +194,7 @@ func main() {
 
 	// Start the web server
 	log.Println("Server starting on http://localhost:8080")
-	err = http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
