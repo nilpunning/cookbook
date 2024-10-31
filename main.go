@@ -11,10 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/renderer/html"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -38,10 +34,6 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
 		var name = strings.TrimSuffix(entry.Name(), s.recipeExt)
 		var title = cases.Title(language.English, cases.Compact).String(name)
-		gMarkdown := goldmark.New(
-			goldmark.WithExtensions(extension.GFM, markdown.Tags),
-			goldmark.WithRendererOptions(html.WithHardWraps()),
-		)
 
 		file, err := os.DirFS(s.recipesPath).Open(filename)
 		if err != nil {
@@ -53,25 +45,14 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 			log.Println("Error reading recipe file:", err)
 			return
 		}
-		var html bytes.Buffer
-		pc := parser.NewContext()
-		if err := gMarkdown.Convert(md.Bytes(), &html, parser.WithContext(pc)); err != nil {
+		html, tags, err := markdown.Convert(md.Bytes())
+		if err != nil {
 			log.Println("Error converting recipe file:", err)
 			return
 		}
 
-		tags := []string{}
-		if t := pc.Get(markdown.TagsContextKey); t != nil {
-			tags = t.([]string)
-		}
-
-		if len(tags) == 0 {
-			tags = []string{"Other"}
-		}
-
 		webpath := strings.ReplaceAll(title, " ", "") + ".html"
-
-		database.UpsertRecipe(s.db, filename, name, webpath, html.String(), tags)
+		database.UpsertRecipe(s.db, filename, name, webpath, html, tags)
 	}
 }
 
