@@ -90,7 +90,7 @@ func GetRecipe(db *sql.DB, webpath string) (string, string, error) {
 }
 
 type RecipesGroupedByTag struct {
-	Tag     string
+	TagName string
 	Recipes []map[string]string
 }
 
@@ -112,19 +112,20 @@ func GetRecipesGroupedByTag(db *sql.DB) ([]RecipesGroupedByTag, error) {
 	defer rows.Close()
 
 	var tags []RecipesGroupedByTag
-	var prevTag string
 	for rows.Next() {
 		var tag_name, name, webpath string
 		err := rows.Scan(&tag_name, &name, &webpath)
 		if err != nil {
 			return nil, err
 		}
-		if tag_name != prevTag {
-			tags = append(tags, RecipesGroupedByTag{Tag: tag_name, Recipes: []map[string]string{}})
-			prevTag = tag_name
+		if len(tags) == 0 || tag_name != tags[len(tags)-1].TagName {
+			tags = append(tags, RecipesGroupedByTag{TagName: tag_name, Recipes: []map[string]string{}})
 		}
-		last := &tags[len(tags)-1]
-		last.Recipes = append(last.Recipes, map[string]string{"Name": name, "Webpath": webpath})
+		currentTag := &tags[len(tags)-1]
+		currentTag.Recipes = append(
+			currentTag.Recipes,
+			map[string]string{"Name": name, "Webpath": webpath}
+		)
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err

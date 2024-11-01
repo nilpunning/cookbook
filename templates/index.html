@@ -1,6 +1,6 @@
 {{define "Body"}}
     {{range .Tags}}
-        <h1>{{.Tag}}</h1>
+        <h1>{{.TagName}}</h1>
         {{range .Recipes}}
             <p><a href="/recipe/{{.Webpath}}">{{.Name}}</a></p>
         {{end}}
