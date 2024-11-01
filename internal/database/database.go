@@ -124,7 +124,7 @@ func GetRecipesGroupedByTag(db *sql.DB) ([]RecipesGroupedByTag, error) {
 		currentTag := &tags[len(tags)-1]
 		currentTag.Recipes = append(
 			currentTag.Recipes,
-			map[string]string{"Name": name, "Webpath": webpath}
+			map[string]string{"Name": name, "Webpath": webpath},
 		)
 	}
 	if err = rows.Err(); err != nil {

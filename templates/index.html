@@ -1,8 +1,9 @@
-{{define "Body"}}
-    {{range .Tags}}
-        <h1>{{.TagName}}</h1>
-        {{range .Recipes}}
-            <p><a href="/recipe/{{.Webpath}}">{{.Name}}</a></p>
-        {{end}}
-    {{end}}
+{{define "body"}}
+    <form class="search-form" hx-get="/" hx-trigger="submit" hx-target="#recipes">
+        <input type="search" name="q" placeholder="Search recipes..." value="{{.Query}}">
+        <button type="submit">Search</button>
+    </form>
+    <div id="recipes">
+        {{template "recipes.html" .}}
+    </div>
 {{end}}

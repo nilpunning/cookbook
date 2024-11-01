@@ -42,3 +42,17 @@ a:hover {
   margin-right: 0.25rem;
   padding: 0.25rem;
 }
+.search-form {
+    width: 100%;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 0.5rem;
+}
+.search-form input[type="search"] {
+    flex: 1;
+    padding: 0.5rem;
+    font-size: 1rem;
+}
+.search-form button {
+    padding: 0.5rem 1rem;
+}
