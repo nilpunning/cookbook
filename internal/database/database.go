@@ -101,55 +101,34 @@ func GetRecipesGroupedByTag(db *sql.DB) ([]RecipesGroupedByTag, error) {
 	}
 	defer tx.Commit()
 
-	tagRows, err := tx.Query(`
-		SELECT DISTINCT tag_name FROM recipe_tag ORDER BY tag_name
+	rows, err := tx.Query(`
+		SELECT recipe_tag.tag_name, recipe.name, recipe.webpath FROM recipe_tag
+		JOIN recipe ON recipe_tag.recipe_filename = recipe.filename
+		ORDER BY recipe_tag.tag_name, recipe.name
 	`)
 	if err != nil {
 		return nil, err
 	}
-	defer tagRows.Close()
+	defer rows.Close()
 
 	var tags []RecipesGroupedByTag
-	for tagRows.Next() {
-		t := RecipesGroupedByTag{}
-		err := tagRows.Scan(&t.Tag)
+	var prevTag string
+	for rows.Next() {
+		var tag_name, name, webpath string
+		err := rows.Scan(&tag_name, &name, &webpath)
 		if err != nil {
 			return nil, err
 		}
-		tags = append(tags, t)
+		if tag_name != prevTag {
+			tags = append(tags, RecipesGroupedByTag{Tag: tag_name, Recipes: []map[string]string{}})
+			prevTag = tag_name
+		}
+		last := &tags[len(tags)-1]
+		last.Recipes = append(last.Recipes, map[string]string{"Name": name, "Webpath": webpath})
 	}
-	if err = tagRows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
-	for i, tag := range tags {
-		recipeRows, err := tx.Query(`
-			SELECT name, webpath FROM recipe
-			JOIN recipe_tag ON recipe.filename = recipe_tag.recipe_filename
-			WHERE recipe_tag.tag_name = ?
-			ORDER BY name
-		`, tag.Tag)
-		if err != nil {
-			return nil, err
-		}
-		defer recipeRows.Close()
-
-		tag.Recipes = []map[string]string{}
-		for recipeRows.Next() {
-			var name, webpath string
-			err := recipeRows.Scan(&name, &webpath)
-			if err != nil {
-				return nil, err
-			}
-			tag.Recipes = append(tag.Recipes, map[string]string{
-				"Name":    name,
-				"Webpath": webpath,
-			})
-		}
-		if err = recipeRows.Err(); err != nil {
-			return nil, err
-		}
-		tags[i] = tag
-	}
 	return tags, nil
 }
