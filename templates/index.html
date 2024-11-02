@@ -1,9 +1,24 @@
 {{define "body"}}
-    <form class="search-form" hx-get="/" hx-trigger="submit" hx-target="#recipes">
-        <input type="search" name="q" placeholder="Search recipes..." value="{{.Query}}">
+    <form
+        class="search-form"
+        hx-get="/"
+        hx-trigger="submit"
+        hx-target="#recipes"
+        hx-push-url="true"
+    >
+        <input
+            type="search"
+            name="q"
+            placeholder="Search recipes..."
+            value="{{.Query}}"
+            hx-get="/"
+            hx-trigger="input changed delay:250ms, search"
+            hx-target="#recipes"
+            hx-push-url="true"
+        >
         <button type="submit">Search</button>
     </form>
     <div id="recipes">
-        {{template "recipes.html" .}}
+        {{block "recipesBody" .}}{{end}}
     </div>
 {{end}}

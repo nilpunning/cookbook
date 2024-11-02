@@ -21,5 +21,5 @@ go run main.go
 ## Production
 
 ```sh
-go build
+go build --tags fts5
 ```

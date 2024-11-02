@@ -14,7 +14,8 @@ func Setup() *sql.DB {
 	}
 	_, err = db.Exec(`
 		CREATE TABLE recipe (
-			filename TEXT NOT NULL PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			filename TEXT NOT NULL UNIQUE,
 			name TEXT NOT NULL,
 			webpath TEXT NOT NULL,
 			html TEXT NOT NULL
@@ -25,6 +26,27 @@ func Setup() *sql.DB {
 			tag_name TEXT NOT NULL,
 			PRIMARY KEY (recipe_filename, tag_name)
 		);
+		CREATE VIRTUAL TABLE recipe_fts USING fts5(
+			name,
+			html,
+			content='recipe',
+			content_rowid='id',
+			tokenize='porter unicode61'
+		);
+		CREATE TRIGGER recipe_ai AFTER INSERT ON recipe BEGIN
+			INSERT INTO recipe_fts(rowid, name, html)
+			VALUES (new.id, new.name, new.html);
+		END;
+		CREATE TRIGGER recipe_ad AFTER DELETE ON recipe BEGIN
+			INSERT INTO recipe_fts(recipe_fts, rowid, name, html)
+			VALUES('delete', old.id, old.name, old.html);
+		END;
+		CREATE TRIGGER recipe_au AFTER UPDATE ON recipe BEGIN
+			INSERT INTO recipe_fts(recipe_fts, rowid, name, html)
+			VALUES('delete', old.id, old.name, old.html);
+			INSERT INTO recipe_fts(rowid, name, html)
+			VALUES (new.id, new.name, new.html);
+		END;
 	`)
 	if err != nil {
 		log.Fatal(err)
@@ -132,4 +154,38 @@ func GetRecipesGroupedByTag(db *sql.DB) ([]RecipesGroupedByTag, error) {
 	}
 
 	return tags, nil
+}
+
+type SearchResult struct {
+	Name    string
+	Webpath string
+}
+
+func SearchRecipes(db *sql.DB, query string) ([]SearchResult, error) {
+	rows, err := db.Query(`
+		SELECT r.name, r.webpath
+		FROM recipe r
+		JOIN recipe_fts fts ON r.id = fts.rowid
+		WHERE recipe_fts MATCH ?
+		ORDER BY r.name
+	`, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var result SearchResult
+
+		if err := rows.Scan(&result.Name, &result.Webpath); err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }

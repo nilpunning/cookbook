@@ -1,0 +1,6 @@
+{{define "recipesBody"}}
+    {{range .Tags}}
+        <h1>{{.TagName}}</h1>
+        {{template "recipes.html" .}}
+    {{end}}
+{{end}}

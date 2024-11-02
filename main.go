@@ -128,38 +128,68 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 
-	indexTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/recipes.html", "templates/index.html"))
-	recipeTemplate := template.Must(template.ParseFiles("templates/base.html", "templates/recipe.html"))
+	indexGroupedByTagTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/recipes.html",
+		"templates/recipesGroupedByTag.html",
+		"templates/index.html",
+	))
+	indexBySearchTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/recipes.html",
+		"templates/recipesBySearch.html",
+		"templates/index.html",
+	))
 
 	http.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("q")
 
-		tags, err := database.GetRecipesGroupedByTag(state.db)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if query == "" && r.URL.RawQuery != "" {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
+		}
+
+		tmpl := indexGroupedByTagTemplate
+		context := map[string]any{}
+
+		if query != "" {
+			tmpl = indexBySearchTemplate
+
+			recipes, err := database.SearchRecipes(state.db, query)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			context["Recipes"] = recipes
+		} else {
+			tags, err := database.GetRecipesGroupedByTag(state.db)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			context["Tags"] = tags
 		}
 
 		isHtmx := r.Header.Get("Hx-Request") == "true"
 		htmxTarget := r.Header.Get("Hx-Target")
-		log.Println("Htmx:", isHtmx, "Target:", htmxTarget, "Query:", query)
 
 		if isHtmx && htmxTarget == "recipes" {
-			if err := indexTemplate.ExecuteTemplate(w, "recipes.html", map[string]any{
-				"Tags": tags,
-			}); err != nil {
+			if err := tmpl.ExecuteTemplate(w, "recipesBody", context); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		} else {
-			if err := indexTemplate.Execute(w, map[string]any{
-				"Title": "Recipes",
-				"Query": query,
-				"Tags":  tags,
-			}); err != nil {
+			context["Title"] = "Recipes"
+			context["Query"] = query
+			if err := tmpl.Execute(w, context); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		}
 	})
+
+	recipeTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/recipe.html",
+	))
 
 	http.HandleFunc("/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
 		webpath := r.PathValue("path")
