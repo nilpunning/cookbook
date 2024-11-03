@@ -1,0 +1,12 @@
+http://localhost:8081 {
+	basicauth {
+		# Username "Bob", password "hiccup"
+		Bob $2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG
+	}
+
+    respond /logout Unauthorized 401
+
+    # respond "Welcome, {http.auth.user.id}" 200
+    reverse_proxy localhost:8080
+    encode zstd gzip
+}

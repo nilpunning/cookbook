@@ -1,5 +1,7 @@
 :root {
-  font-family: "Apple Garamond", Palatino, "Bookman Old Style", Georgia, "New York", "Times New Roman", Times, serif;
+  --font-serif: "Apple Garamond", Palatino, "Bookman Old Style", Georgia, "New York", "Times New Roman", Times, serif;
+  --font-sans: "Gill Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: var(--font-serif);
 }
 body {
   margin: 0 auto;
@@ -9,7 +11,7 @@ body {
 h1, h2, header {
   font-size: 1rem;
   font-weight: bold;
-  font-family: "Gill Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans);
 }
 h1 {
   font-size: 1.5rem;
@@ -36,6 +38,9 @@ a {
 }
 a:hover {
   text-decoration: underline;
+}
+input, button {
+  font-family: var(--font-sans);
 }
 .tag {
   outline: 1px solid #e5e7eb;
