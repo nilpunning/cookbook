@@ -10,8 +10,10 @@ body {
 }
 h1, h2, header {
   font-size: 1rem;
-  font-weight: bold;
   font-family: var(--font-sans);
+}
+h1, h2 {
+  font-weight: bold;
 }
 h1 {
   font-size: 1.5rem;
@@ -66,10 +68,4 @@ input, textarea {
 }
 .recipe-form input, textarea {
     width: 100%;
-}
-.form-buttons {
-    display: flex;
-    align-items: center;
-    gap: 1em;
-    margin-top: 1em;
 }

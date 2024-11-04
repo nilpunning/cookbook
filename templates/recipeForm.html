@@ -5,10 +5,13 @@
         <p>
             <textarea name="body" rows="20" placeholder="Recipe Content..." required>{{.Body}}</textarea>
         </p>
-        <div class="form-buttons">
+        <p style="display: flex; align-items: center; gap: 1rem;">
             <button type="submit">Save</button>
-            <a href="{{.Webpath}}" >Cancel</a>
-        </div>
+            <a href="{{.CancelUrl}}" style="margin-right: auto;">Cancel</a>
+            {{if .DeleteUrl}}
+                <a href="{{.DeleteUrl}}" style="margin-left: auto;">Delete</a>
+            {{end}}
+        </p>
     </form>
 </div>
-{{end}} 
+{{end}}

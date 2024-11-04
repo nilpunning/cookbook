@@ -1,7 +1,7 @@
 {{define "body"}}
-    <h1 style="display: flex;">
+    <h1 style="display: flex; align-items: center;">
         <span style="margin-right: auto;">{{.Name}}</span>
-        <a style="margin-left: auto; font-size: 1rem;" href="/recipe/{{.Webpath}}/edit">Edit</a>
+        <a style="margin-left: auto; font-weight: normal; font-size: 1rem;" href="/edit/recipe/{{.Webpath}}">Edit</a>
     </h1>
     {{.Body}}
 {{end}}

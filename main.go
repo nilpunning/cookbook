@@ -150,8 +150,6 @@ func handleEditRecipe(state State, w http.ResponseWriter, r *http.Request, prevF
 func main() {
 	// Recipes path must be a folder that exists, if it doesn't exist or is deleted after the
 	// program starts, recipe changes will not be monitored.
-	log.Println("Recipes path:", os.Args[1])
-
 	var state = State{
 		db:          database.Setup(),
 		recipesPath: os.Args[1],
@@ -242,7 +240,7 @@ func main() {
 				Webpath string
 				Body    template.HTML
 			}{
-				Title:   "Recipes",
+				Title:   name,
 				Name:    name,
 				Webpath: webpath,
 				Body:    template.HTML(html),
@@ -260,16 +258,17 @@ func main() {
 		"templates/recipeForm.html",
 	))
 
-	http.HandleFunc("/new/recipe", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/recipe", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			data := struct {
-				Title   string
-				Name    string
-				Body    string
-				Webpath string
+				Title     string
+				Name      string
+				Body      string
+				CancelUrl string
+				DeleteUrl string
 			}{
-				Title:   "New Recipe",
-				Webpath: "/",
+				Title:     "Add Recipe",
+				CancelUrl: "/",
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -280,7 +279,7 @@ func main() {
 		handleEditRecipe(state, w, r, "")
 	})
 
-	http.HandleFunc("/recipe/{path}/edit", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/edit/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
 		webpath := r.PathValue("path")
 
 		name, filename, err := database.GetRecipeName(state.db, webpath)
@@ -302,15 +301,17 @@ func main() {
 			}
 
 			data := struct {
-				Title   string
-				Name    string
-				Body    string
-				Webpath string
+				Title     string
+				Name      string
+				Body      string
+				CancelUrl string
+				DeleteUrl string
 			}{
-				Title:   "Edit " + name,
-				Name:    name,
-				Body:    string(md),
-				Webpath: "/recipe/" + webpath,
+				Title:     "Edit " + name,
+				Name:      name,
+				Body:      string(md),
+				CancelUrl: "/recipe/" + webpath,
+				DeleteUrl: "/delete/recipe/" + webpath,
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -319,6 +320,56 @@ func main() {
 		}
 
 		handleEditRecipe(state, w, r, filename)
+	})
+
+	deleteRecipeTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/deleteRecipe.html",
+	))
+
+	http.HandleFunc("/delete/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
+		webpath := r.PathValue("path")
+
+		if r.Method == "GET" {
+			name, html, err := database.GetRecipe(state.db, webpath)
+			if err == sql.ErrNoRows {
+				http.Error(w, "Recipe not found", http.StatusNotFound)
+				return
+			}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			data := struct {
+				Title   string
+				Name    string
+				Body    template.HTML
+				Webpath string
+			}{
+				Title:   "Delete " + name + "?",
+				Name:    name,
+				Body:    template.HTML(html),
+				Webpath: "/recipe/" + webpath,
+			}
+			if err := deleteRecipeTemplate.Execute(w, data); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		_, filename, err := database.GetRecipeName(state.db, webpath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		fp := filepath.Join(state.recipesPath, filename)
+		if err := os.Remove(fp); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
 
 	// Start the web server
