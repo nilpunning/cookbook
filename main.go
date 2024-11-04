@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,10 +31,14 @@ func (s *State) isRecipe(entry fs.FileInfo) bool {
 	return !entry.IsDir() && strings.HasSuffix(entry.Name(), s.recipeExt)
 }
 
+func nameToWebpath(name string) string {
+	title := cases.Title(language.English, cases.Compact).String(name)
+	return strings.ReplaceAll(title, " ", "") + ".html"
+}
+
 func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
 		var name = strings.TrimSuffix(entry.Name(), s.recipeExt)
-		var title = cases.Title(language.English, cases.Compact).String(name)
 
 		file, err := os.DirFS(s.recipesPath).Open(filename)
 		if err != nil {
@@ -50,9 +55,7 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 			log.Println("Error converting recipe file:", err)
 			return
 		}
-
-		webpath := strings.ReplaceAll(title, " ", "") + ".html"
-		database.UpsertRecipe(s.db, filename, name, webpath, html, tags)
+		database.UpsertRecipe(s.db, filename, name, nameToWebpath(name), html, tags)
 	}
 }
 
@@ -108,6 +111,40 @@ func (s *State) monitorRecipesDirectory() {
 			log.Println("Error:", err)
 		}
 	}
+}
+
+func handleEditRecipe(state State, w http.ResponseWriter, r *http.Request, prevFilename string) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	name := filepath.Base(r.FormValue("name"))
+	body := r.FormValue("body")
+
+	if name == "." || name == string(filepath.Separator) {
+		http.Error(w, "Name is required", http.StatusBadRequest)
+		return
+	}
+
+	filename := name + state.recipeExt
+	fp := filepath.Join(state.recipesPath, filename)
+
+	if err := os.WriteFile(fp, []byte(body), 0644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if prevFilename != "" && prevFilename != filename {
+		prevFp := filepath.Join(state.recipesPath, prevFilename)
+		if err := os.Remove(prevFp); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	escapedPath := url.PathEscape(nameToWebpath(name))
+	http.Redirect(w, r, "/recipe/"+escapedPath, http.StatusSeeOther)
 }
 
 func main() {
@@ -200,13 +237,15 @@ func main() {
 			http.Error(w, "Recipe not found", http.StatusNotFound)
 		case nil:
 			data := struct {
-				Title string
-				Name  string
-				Body  template.HTML
+				Title   string
+				Name    string
+				Webpath string
+				Body    template.HTML
 			}{
-				Title: "Recipes",
-				Name:  name,
-				Body:  template.HTML(html),
+				Title:   "Recipes",
+				Name:    name,
+				Webpath: webpath,
+				Body:    template.HTML(html),
 			}
 			if err := recipeTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -214,6 +253,72 @@ func main() {
 		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	})
+
+	recipeFormTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/recipeForm.html",
+	))
+
+	http.HandleFunc("/new/recipe", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			data := struct {
+				Title   string
+				Name    string
+				Body    string
+				Webpath string
+			}{
+				Title:   "New Recipe",
+				Webpath: "/",
+			}
+			if err := recipeFormTemplate.Execute(w, data); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		handleEditRecipe(state, w, r, "")
+	})
+
+	http.HandleFunc("/recipe/{path}/edit", func(w http.ResponseWriter, r *http.Request) {
+		webpath := r.PathValue("path")
+
+		name, filename, err := database.GetRecipeName(state.db, webpath)
+		if err == sql.ErrNoRows {
+			http.Error(w, "Recipe not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fp := filepath.Join(state.recipesPath, filename)
+
+		if r.Method == "GET" {
+			md, err := os.ReadFile(fp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			data := struct {
+				Title   string
+				Name    string
+				Body    string
+				Webpath string
+			}{
+				Title:   "Edit " + name,
+				Name:    name,
+				Body:    string(md),
+				Webpath: "/recipe/" + webpath,
+			}
+			if err := recipeFormTemplate.Execute(w, data); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		handleEditRecipe(state, w, r, filename)
 	})
 
 	// Start the web server

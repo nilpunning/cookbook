@@ -39,8 +39,11 @@ a {
 a:hover {
   text-decoration: underline;
 }
-input, button {
+input, textarea,button {
   font-family: var(--font-sans);
+}
+input, textarea {
+  border: 1px solid #e5e7eb;
 }
 .tag {
   outline: 1px solid #e5e7eb;
@@ -60,4 +63,13 @@ input, button {
 }
 .search-form button {
     padding: 0.5rem 1rem;
+}
+.recipe-form input, textarea {
+    width: 100%;
+}
+.form-buttons {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    margin-top: 1em;
 }

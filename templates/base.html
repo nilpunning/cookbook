@@ -17,7 +17,10 @@
 </head>
 <body>
     <header>
-        <a href="/">Recipes</a>
+        <nav style="display: flex;">
+            <a href="/" style="margin-right: auto;">Recipes</a>
+            <a href="/new/recipe" style="margin-left: auto;">New</a>
+        </nav>
     </header>
     <main>
         {{block "body" .}}{{end}}

@@ -111,6 +111,15 @@ func GetRecipe(db *sql.DB, webpath string) (string, string, error) {
 	return name, html, row.Scan(&name, &html)
 }
 
+func GetRecipeName(db *sql.DB, webpath string) (string, string, error) {
+	row := db.QueryRow(`
+		SELECT name, filename FROM recipe WHERE webpath = ?
+	`, webpath)
+
+	var name, filename string
+	return name, filename, row.Scan(&name, &filename)
+}
+
 type RecipesGroupedByTag struct {
 	TagName string
 	Recipes []map[string]string

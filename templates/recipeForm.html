@@ -1,0 +1,14 @@
+{{define "body"}}
+<div class="recipe-form">
+    <form method="POST">
+        <input type="text" name="name" placeholder="Recipe Name" value="{{.Name}}" required>
+        <p>
+            <textarea name="body" rows="20" placeholder="Recipe Content..." required>{{.Body}}</textarea>
+        </p>
+        <div class="form-buttons">
+            <button type="submit">Save</button>
+            <a href="{{.Webpath}}" >Cancel</a>
+        </div>
+    </form>
+</div>
+{{end}} 
