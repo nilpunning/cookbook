@@ -3,7 +3,7 @@ tmp_dir = "tmp"
 
 [build]
   cmd = "go build --tags fts5 -o ./tmp/main ."
-  bin = "./tmp/main $(pwd)/recipes"
+  bin = "./tmp/main hallertau.toml"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "recipes"]
   include_ext = ["go", "tpl", "tmpl", "html"]

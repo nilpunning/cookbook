@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"database/sql"
 	"hallertau/internal/database"
 	"hallertau/internal/markdown"
 	"io/fs"
@@ -16,26 +15,22 @@ import (
 	"golang.org/x/text/language"
 )
 
+var recipeExt = ".md"
+
 func nameToWebpath(name string) string {
 	title := cases.Title(language.English, cases.Compact).String(name)
 	return strings.ReplaceAll(title, " ", "") + ".html"
 }
 
-type State struct {
-	DB          *sql.DB
-	RecipesPath string
-	RecipeExt   string
-}
-
 func (s *State) isRecipe(entry fs.FileInfo) bool {
-	return !entry.IsDir() && strings.HasSuffix(entry.Name(), s.RecipeExt)
+	return !entry.IsDir() && strings.HasSuffix(entry.Name(), recipeExt)
 }
 
 func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
-		var name = strings.TrimSuffix(entry.Name(), s.RecipeExt)
+		var name = strings.TrimSuffix(entry.Name(), recipeExt)
 
-		file, err := os.DirFS(s.RecipesPath).Open(filename)
+		file, err := os.DirFS(s.Config.Server.RecipesPath).Open(filename)
 		if err != nil {
 			log.Println("Error opening recipe file:", err)
 			return
@@ -55,7 +50,7 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 }
 
 func (s *State) LoadRecipes() {
-	entries, err := os.ReadDir(s.RecipesPath)
+	entries, err := os.ReadDir(s.Config.Server.RecipesPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -76,7 +71,7 @@ func (s *State) MonitorRecipesDirectory() {
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(s.RecipesPath)
+	err = watcher.Add(s.Config.Server.RecipesPath)
 	if err != nil {
 		log.Fatal(err)
 	}

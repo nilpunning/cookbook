@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-func HandleEditRecipe(s State, w http.ResponseWriter, r *http.Request, prevFilename string) {
+func handleEditRecipe(s State, w http.ResponseWriter, r *http.Request, prevFilename string) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -21,8 +21,8 @@ func HandleEditRecipe(s State, w http.ResponseWriter, r *http.Request, prevFilen
 		return
 	}
 
-	filename := name + s.RecipeExt
-	fp := filepath.Join(s.RecipesPath, filename)
+	filename := name + recipeExt
+	fp := filepath.Join(s.Config.Server.RecipesPath, filename)
 
 	if err := os.WriteFile(fp, []byte(body), 0644); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -30,7 +30,7 @@ func HandleEditRecipe(s State, w http.ResponseWriter, r *http.Request, prevFilen
 	}
 
 	if prevFilename != "" && prevFilename != filename {
-		prevFp := filepath.Join(s.RecipesPath, prevFilename)
+		prevFp := filepath.Join(s.Config.Server.RecipesPath, prevFilename)
 		if err := os.Remove(prevFp); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
