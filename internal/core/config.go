@@ -5,13 +5,14 @@ import (
 	"log"
 
 	"github.com/BurntSushi/toml"
-	"github.com/alexedwards/scs/v2"
+	"github.com/gorilla/sessions"
 )
 
 type Config struct {
 	Server struct {
-		Address     string
-		RecipesPath string
+		Address       string
+		RecipesPath   string
+		SessionSecret string
 	}
 	OIDC struct {
 		Issuer       string
@@ -22,9 +23,9 @@ type Config struct {
 }
 
 type State struct {
-	DB             *sql.DB
-	SessionManager *scs.SessionManager
-	Config         Config
+	DB           *sql.DB
+	SessionStore *sessions.CookieStore
+	Config       Config
 }
 
 func LoadConfig(path string) Config {

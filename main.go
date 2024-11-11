@@ -9,21 +9,24 @@ import (
 	"hallertau/internal/core"
 	"hallertau/internal/database"
 
-	"github.com/alexedwards/scs/v2"
-	"github.com/alexedwards/scs/v2/memstore"
+	"github.com/gorilla/sessions"
 )
 
 func main() {
 	// Recipes path must be a folder that exists, if it doesn't exist or is deleted after the
 	// program starts, recipe changes will not be monitored.
+
+	config := core.LoadConfig(os.Args[1])
+	sessionStore := sessions.NewCookieStore([]byte(config.Server.SessionSecret))
+	sessionStore.MaxAge(60 * 60 * 24)
+	sessionStore.Options.Secure = true
+
 	var state = core.State{
-		DB:             database.Setup(),
-		SessionManager: scs.New(),
-		Config:         core.LoadConfig(os.Args[1]),
+		DB:           database.Setup(),
+		SessionStore: sessionStore,
+		Config:       config,
 	}
 	defer state.DB.Close()
-
-	state.SessionManager.Store = memstore.New()
 
 	state.LoadRecipes()
 	go state.MonitorRecipesDirectory()
@@ -39,7 +42,7 @@ func main() {
 	log.Println("Server starting on", state.Config.Server.Address)
 	err := http.ListenAndServe(
 		state.Config.Server.Address,
-		state.SessionManager.LoadAndSave(serveMux),
+		serveMux,
 	)
 	if err != nil {
 		log.Fatal(err)

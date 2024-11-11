@@ -17,6 +17,8 @@ import (
 	"hallertau/internal/core"
 )
 
+var sessionKey = "session"
+
 func randString(nByte int) (string, error) {
 	b := make([]byte, nByte)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
@@ -66,9 +68,14 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) {
 		cookieValue := setRandomCookie(w, "state")
 		nonceValue := setRandomCookie(w, "nonce")
 
-		err = state.SessionManager.RenewToken(r.Context())
+		session, err := state.SessionStore.New(r, sessionKey)
 		if err != nil {
-			http.Error(w, err.Error(), 500)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		err = session.Save(r, w)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -135,7 +142,17 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) {
 			return
 		}
 
-		state.SessionManager.Put(r.Context(), "sub", claims.Sub)
+		session, err := state.SessionStore.Get(r, sessionKey)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		session.Values["sub"] = claims.Sub
+		err = session.Save(r, w)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})

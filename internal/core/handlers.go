@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"hallertau/internal/database"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,11 +25,17 @@ func AddHandlers(serveMux *http.ServeMux, state State) {
 	))
 
 	serveMux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		// for _, cookie := range r.Cookies() {
-		// 	log.Printf("Cookie: %s = %s", cookie.Name, cookie.Value)
-		// }
+		for _, cookie := range r.Cookies() {
+			log.Printf("Cookie: %s = %s", cookie.Name, cookie.Value)
+		}
 
-		// log.Println("way ======>", state.SessionManager.GetString(r.Context(), "sub"))
+		session, err := state.SessionStore.Get(r, "session")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		log.Println("======>", session.Values["sub"])
 
 		query := r.URL.Query().Get("q")
 
