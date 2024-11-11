@@ -1,13 +1,15 @@
-package core
+package handlers
 
 import (
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+
+	"hallertau/internal/core"
 )
 
-func handleEditRecipe(s State, w http.ResponseWriter, r *http.Request, prevFilename string) {
+func handleEditRecipe(s core.State, w http.ResponseWriter, r *http.Request, prevFilename string) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -21,7 +23,7 @@ func handleEditRecipe(s State, w http.ResponseWriter, r *http.Request, prevFilen
 		return
 	}
 
-	filename := name + recipeExt
+	filename := name + core.RecipeExt
 	fp := filepath.Join(s.Config.Server.RecipesPath, filename)
 
 	if err := os.WriteFile(fp, []byte(body), 0644); err != nil {
@@ -37,6 +39,6 @@ func handleEditRecipe(s State, w http.ResponseWriter, r *http.Request, prevFilen
 		}
 	}
 
-	escapedPath := url.PathEscape(nameToWebpath(name))
+	escapedPath := url.PathEscape(core.NameToWebpath(name))
 	http.Redirect(w, r, "/recipe/"+escapedPath, http.StatusSeeOther)
 }

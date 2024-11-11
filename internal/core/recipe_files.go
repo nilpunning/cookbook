@@ -15,20 +15,20 @@ import (
 	"golang.org/x/text/language"
 )
 
-var recipeExt = ".md"
+var RecipeExt = ".md"
 
-func nameToWebpath(name string) string {
+func NameToWebpath(name string) string {
 	title := cases.Title(language.English, cases.Compact).String(name)
 	return strings.ReplaceAll(title, " ", "") + ".html"
 }
 
 func (s *State) isRecipe(entry fs.FileInfo) bool {
-	return !entry.IsDir() && strings.HasSuffix(entry.Name(), recipeExt)
+	return !entry.IsDir() && strings.HasSuffix(entry.Name(), RecipeExt)
 }
 
 func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 	if s.isRecipe(entry) {
-		var name = strings.TrimSuffix(entry.Name(), recipeExt)
+		var name = strings.TrimSuffix(entry.Name(), RecipeExt)
 
 		file, err := os.DirFS(s.Config.Server.RecipesPath).Open(filename)
 		if err != nil {
@@ -45,7 +45,7 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 			log.Println("Error converting recipe file:", err)
 			return
 		}
-		database.UpsertRecipe(s.DB, filename, name, nameToWebpath(name), html, tags)
+		database.UpsertRecipe(s.DB, filename, name, NameToWebpath(name), html, tags)
 	}
 }
 

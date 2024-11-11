@@ -1,7 +1,9 @@
-package core
+package handlers
 
 import (
 	"database/sql"
+	"hallertau/internal/auth"
+	"hallertau/internal/core"
 	"hallertau/internal/database"
 	"html/template"
 	"log"
@@ -10,7 +12,7 @@ import (
 	"path/filepath"
 )
 
-func AddHandlers(serveMux *http.ServeMux, state State) {
+func AddHandlers(serveMux *http.ServeMux, state core.State) {
 	indexGroupedByTagTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/recipes.html",
@@ -29,13 +31,18 @@ func AddHandlers(serveMux *http.ServeMux, state State) {
 			log.Printf("Cookie: %s = %s", cookie.Name, cookie.Value)
 		}
 
-		session, err := state.SessionStore.Get(r, "session")
+		// session, err := auth.GetSession(state.SessionStore, r)
+		// if err != nil {
+		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+		// 	return
+		// }
+
+		authenticated, err := auth.IsAuthenticated(state.SessionStore, r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		log.Println("======>", session.Values["sub"])
+		log.Println("======>", authenticated)
 
 		query := r.URL.Query().Get("q")
 

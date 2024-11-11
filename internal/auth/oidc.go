@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"hallertau/internal/core"
 	"io"
 	"log"
 	"net/http"
@@ -13,11 +14,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	_ "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
-
-	"hallertau/internal/core"
 )
-
-var sessionKey = "session"
 
 func randString(nByte int) (string, error) {
 	b := make([]byte, nByte)
@@ -68,7 +65,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) {
 		cookieValue := setRandomCookie(w, "state")
 		nonceValue := setRandomCookie(w, "nonce")
 
-		session, err := state.SessionStore.New(r, sessionKey)
+		session, err := NewSession(state.SessionStore, r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -118,9 +115,12 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) {
 		}
 
 		resp := struct {
-			OAuth2Token   *oauth2.Token
+			// OAuth2Token   *oauth2.Token
 			IDTokenClaims *json.RawMessage
-		}{oauth2Token, new(json.RawMessage)}
+		}{
+			// oauth2Token,
+			new(json.RawMessage),
+		}
 
 		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -142,7 +142,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) {
 			return
 		}
 
-		session, err := state.SessionStore.Get(r, sessionKey)
+		session, err := GetSession(state.SessionStore, r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
