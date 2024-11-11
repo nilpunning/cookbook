@@ -32,8 +32,9 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	serveMux.Handle("/", fs)
 
-	handlers.AddHandlers(serveMux, state)
-	auth.AddOIDCAuth(serveMux, state, "/auth/oidc")
+	loginURL := "/auth/oidc"
+	auth.AddOIDCAuth(serveMux, state, loginURL)
+	handlers.AddHandlers(serveMux, state, loginURL, "/auth/oidc/logout")
 
 	log.Println("Server starting on", state.Config.Server.Address)
 	err := http.ListenAndServe(

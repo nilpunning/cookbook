@@ -6,13 +6,27 @@ import (
 	"hallertau/internal/core"
 	"hallertau/internal/database"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 )
 
-func AddHandlers(serveMux *http.ServeMux, state core.State) {
+type baseContext struct {
+	IsAuthenticated bool
+	LoginUrl        string
+	LogoutUrl       string
+}
+
+func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, logoutURL string) {
+
+	makeBaseContext := func(r *http.Request) baseContext {
+		return baseContext{
+			IsAuthenticated: auth.IsAuthenticated(state.SessionStore, r),
+			LoginUrl:        loginURL,
+			LogoutUrl:       logoutURL,
+		}
+	}
+
 	indexGroupedByTagTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/recipes.html",
@@ -27,23 +41,6 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 	))
 
 	serveMux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		for _, cookie := range r.Cookies() {
-			log.Printf("Cookie: %s = %s", cookie.Name, cookie.Value)
-		}
-
-		// session, err := auth.GetSession(state.SessionStore, r)
-		// if err != nil {
-		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-		// 	return
-		// }
-
-		authenticated, err := auth.IsAuthenticated(state.SessionStore, r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		log.Println("======>", authenticated)
-
 		query := r.URL.Query().Get("q")
 
 		if query == "" && r.URL.RawQuery != "" {
@@ -52,7 +49,13 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 		}
 
 		tmpl := indexGroupedByTagTemplate
-		context := map[string]any{}
+		context := struct {
+			baseContext
+			Recipes []database.SearchResult
+			Tags    []database.RecipesGroupedByTag
+			Title   string
+			Query   string
+		}{baseContext: makeBaseContext(r)}
 
 		if query != "" {
 			tmpl = indexBySearchTemplate
@@ -62,14 +65,14 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			context["Recipes"] = recipes
+			context.Recipes = recipes
 		} else {
 			tags, err := database.GetRecipesGroupedByTag(state.DB)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			context["Tags"] = tags
+			context.Tags = tags
 		}
 
 		isHtmx := r.Header.Get("Hx-Request") == "true"
@@ -80,8 +83,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		} else {
-			context["Title"] = "Recipes"
-			context["Query"] = query
+			context.Title = "Recipes"
+			context.Query = query
 			if err := tmpl.Execute(w, context); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -102,15 +105,17 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 			http.Error(w, "Recipe not found", http.StatusNotFound)
 		case nil:
 			data := struct {
+				baseContext
 				Title   string
 				Name    string
 				Webpath string
 				Body    template.HTML
 			}{
-				Title:   name,
-				Name:    name,
-				Webpath: webpath,
-				Body:    template.HTML(html),
+				baseContext: makeBaseContext(r),
+				Title:       name,
+				Name:        name,
+				Webpath:     webpath,
+				Body:        template.HTML(html),
 			}
 			if err := recipeTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -128,14 +133,16 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 	serveMux.HandleFunc("/recipe", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			data := struct {
+				baseContext
 				Title     string
 				Name      string
 				Body      string
 				CancelUrl string
 				DeleteUrl string
 			}{
-				Title:     "Add Recipe",
-				CancelUrl: "/",
+				baseContext: makeBaseContext(r),
+				Title:       "Add Recipe",
+				CancelUrl:   "/",
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -168,17 +175,19 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 			}
 
 			data := struct {
+				baseContext
 				Title     string
 				Name      string
 				Body      string
 				CancelUrl string
 				DeleteUrl string
 			}{
-				Title:     "Edit " + name,
-				Name:      name,
-				Body:      string(md),
-				CancelUrl: "/recipe/" + webpath,
-				DeleteUrl: "/delete/recipe/" + webpath,
+				baseContext: makeBaseContext(r),
+				Title:       "Edit " + name,
+				Name:        name,
+				Body:        string(md),
+				CancelUrl:   "/recipe/" + webpath,
+				DeleteUrl:   "/delete/recipe/" + webpath,
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -208,15 +217,17 @@ func AddHandlers(serveMux *http.ServeMux, state core.State) {
 				return
 			}
 			data := struct {
+				baseContext
 				Title   string
 				Name    string
 				Body    template.HTML
 				Webpath string
 			}{
-				Title:   "Delete " + name + "?",
-				Name:    name,
-				Body:    template.HTML(html),
-				Webpath: "/recipe/" + webpath,
+				baseContext: makeBaseContext(r),
+				Title:       "Delete " + name + "?",
+				Name:        name,
+				Body:        template.HTML(html),
+				Webpath:     "/recipe/" + webpath,
 			}
 			if err := deleteRecipeTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -16,18 +17,28 @@ func NewSessionStore(secret string) *sessions.CookieStore {
 	return store
 }
 
-func NewSession(store *sessions.CookieStore, r *http.Request) (*sessions.Session, error) {
-	return store.New(r, sessionKey)
+func ClearSession(store *sessions.CookieStore, r *http.Request, w http.ResponseWriter) error {
+	session, err := store.Get(r, sessionKey)
+	if err != nil {
+		return err
+	}
+	session.Options.MaxAge = -1
+	err = session.Save(r, w)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetSession(store *sessions.CookieStore, r *http.Request) (*sessions.Session, error) {
 	return store.Get(r, sessionKey)
 }
 
-func IsAuthenticated(store *sessions.CookieStore, r *http.Request) (bool, error) {
+func IsAuthenticated(store *sessions.CookieStore, r *http.Request) bool {
 	session, err := GetSession(store, r)
 	if err != nil {
-		return false, err
+		log.Println("Error getting session:", err)
+		return false
 	}
-	return session.Values["sub"] != nil, nil
+	return session.Values["sub"] != nil
 }

@@ -9,10 +9,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	_ "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
 
@@ -65,17 +65,11 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) {
 		cookieValue := setRandomCookie(w, "state")
 		nonceValue := setRandomCookie(w, "nonce")
 
-		session, err := NewSession(state.SessionStore, r)
+		err := ClearSession(state.SessionStore, r, w)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		err = session.Save(r, w)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
 		http.Redirect(w, r, config.AuthCodeURL(cookieValue, oidc.Nonce(nonceValue)), http.StatusFound)
 	})
 
@@ -155,5 +149,26 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) {
 		}
 
 		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+
+	serveMux.HandleFunc(mountPoint+"/logout", func(w http.ResponseWriter, r *http.Request) {
+		err := ClearSession(state.SessionStore, r, w)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		logoutURL, err := url.Parse(state.Config.OIDC.EndSessionEndpoint)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		q := logoutURL.Query()
+		q.Set("post_logout_redirect_uri", "/")
+		logoutURL.RawQuery = q.Encode()
+
+		log.Println("Logout URL:", logoutURL.String())
+
+		http.Redirect(w, r, logoutURL.String(), http.StatusSeeOther)
 	})
 }

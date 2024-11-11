@@ -15,10 +15,11 @@ type Config struct {
 		SessionSecret string
 	}
 	OIDC struct {
-		Issuer       string
-		ClientID     string
-		ClientSecret string
-		RedirectURI  string
+		Issuer             string
+		EndSessionEndpoint string
+		ClientID           string
+		ClientSecret       string
+		RedirectURI        string
 	}
 }
 
