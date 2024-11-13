@@ -1,6 +1,7 @@
 {{define "body"}}
 <div class="recipe-form">
     <form method="POST">
+        {{ .CsrfField }}
         <input type="text" name="name" placeholder="Recipe Name" value="{{.Name}}" required>
         <p>
             <textarea name="body" rows="20" placeholder="Recipe Content..." required>{{.Body}}</textarea>

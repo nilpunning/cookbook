@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/gorilla/csrf"
 )
 
 type baseContext struct {
@@ -130,6 +132,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		if r.Method == "GET" {
 			data := struct {
 				baseContext
+				CsrfField template.HTML
 				Title     string
 				Name      string
 				Body      string
@@ -137,6 +140,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				DeleteUrl string
 			}{
 				baseContext: bc,
+				CsrfField:   csrf.TemplateField(r),
 				Title:       "Add Recipe",
 				CancelUrl:   "/",
 			}
@@ -178,6 +182,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 			data := struct {
 				baseContext
+				CsrfField template.HTML
 				Title     string
 				Name      string
 				Body      string
@@ -185,6 +190,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				DeleteUrl string
 			}{
 				baseContext: bc,
+				CsrfField:   csrf.TemplateField(r),
 				Title:       "Edit " + name,
 				Name:        name,
 				Body:        string(md),
@@ -226,12 +232,14 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 			}
 			data := struct {
 				baseContext
-				Title   string
-				Name    string
-				Body    template.HTML
-				Webpath string
+				CsrfField template.HTML
+				Title     string
+				Name      string
+				Body      template.HTML
+				Webpath   string
 			}{
 				baseContext: bc,
+				CsrfField:   csrf.TemplateField(r),
 				Title:       "Delete " + name + "?",
 				Name:        name,
 				Body:        template.HTML(html),

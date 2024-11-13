@@ -1,5 +1,6 @@
 {{define "body"}}
     <form method="POST">
+        {{ .CsrfField }}
         <p>Are you sure you want to delete <strong>{{.Name}}</strong>?</p>
         <p style="display: flex; align-items: center;">
             <button type="submit" style="margin-right: auto;">Delete</button>

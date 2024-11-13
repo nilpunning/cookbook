@@ -9,6 +9,8 @@ import (
 	"hallertau/internal/core"
 	"hallertau/internal/database"
 	"hallertau/internal/handlers"
+
+	"github.com/gorilla/csrf"
 )
 
 func main() {
@@ -36,10 +38,12 @@ func main() {
 	auth.AddOIDCAuth(serveMux, state, loginURL)
 	handlers.AddHandlers(serveMux, state, loginURL, "/auth/oidc/logout")
 
+	csrfMiddleware := csrf.Protect([]byte(state.Config.Server.CSRFKey))
+
 	log.Println("Server starting on", state.Config.Server.Address)
 	err := http.ListenAndServe(
 		state.Config.Server.Address,
-		serveMux,
+		csrfMiddleware(serveMux),
 	)
 	if err != nil {
 		log.Fatal(err)

@@ -13,6 +13,7 @@ type Config struct {
 		Address       string
 		RecipesPath   string
 		SessionSecret string
+		CSRFKey       string
 	}
 	OIDC struct {
 		Issuer             string
