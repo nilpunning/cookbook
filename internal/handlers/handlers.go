@@ -27,16 +27,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		}
 	}
 
-	indexGroupedByTagTemplate := template.Must(template.ParseFiles(
+	indexTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
-		"templates/recipes.html",
-		"templates/recipesGroupedByTag.html",
-		"templates/index.html",
-	))
-	indexBySearchTemplate := template.Must(template.ParseFiles(
-		"templates/base.html",
-		"templates/recipes.html",
-		"templates/recipesBySearch.html",
 		"templates/index.html",
 	))
 
@@ -48,18 +40,19 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 			return
 		}
 
-		tmpl := indexGroupedByTagTemplate
 		context := struct {
 			baseContext
 			Recipes []database.SearchResult
 			Tags    []database.RecipesGroupedByTag
 			Title   string
 			Query   string
-		}{baseContext: makeBaseContext(r)}
+		}{
+			baseContext: makeBaseContext(r),
+			Title:       "Recipes",
+			Query:       query,
+		}
 
 		if query != "" {
-			tmpl = indexBySearchTemplate
-
 			recipes, err := database.SearchRecipes(state.DB, query)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -78,16 +71,13 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		isHtmx := r.Header.Get("Hx-Request") == "true"
 		htmxTarget := r.Header.Get("Hx-Target")
 
+		templateName := "base.html"
 		if isHtmx && htmxTarget == "recipes" {
-			if err := tmpl.ExecuteTemplate(w, "recipesBody", context); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		} else {
-			context.Title = "Recipes"
-			context.Query = query
-			if err := tmpl.Execute(w, context); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
+			templateName = "recipesBody"
+		}
+
+		if err := indexTemplate.ExecuteTemplate(w, templateName, context); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
 

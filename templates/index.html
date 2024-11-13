@@ -19,6 +19,18 @@
         <button type="submit">Search</button>
     </form>
     <div id="recipes">
-        {{block "recipesBody" .}}{{end}}
+        {{block "recipesBody" .}}
+            {{/* By default show recipes grouped by tag */}}
+            {{range .Tags}}
+                <h1>{{.TagName}}</h1>
+                {{block "recipes" .}}
+                    {{range .Recipes}}
+                        <p><a href="/recipe/{{.Webpath}}">{{.Name}}</a></p>
+                    {{end}}
+                {{end}}
+            {{end}}
+            {{/* When there is a query show the recipes by relevance */}}
+            {{template "recipes" .}}
+        {{end}}
     </div>
 {{end}}
