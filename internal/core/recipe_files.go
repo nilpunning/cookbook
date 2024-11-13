@@ -40,12 +40,19 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 			log.Println("Error reading recipe file:", err)
 			return
 		}
-		html, tags, err := markdown.Convert(md.Bytes())
+		html, tags, err := markdown.ConvertToHtml(md.Bytes())
 		if err != nil {
 			log.Println("Error converting recipe file:", err)
 			return
 		}
-		database.UpsertRecipe(s.DB, filename, name, NameToWebpath(name), html, tags)
+		text, _, err := markdown.ConvertToString(md.Bytes())
+		if err != nil {
+			log.Println("Error converting recipe file:", err)
+			return
+		}
+		log.Println("=========Poopy=========")
+		log.Println(text)
+		database.UpsertRecipe(s.DB, filename, name, NameToWebpath(name), html, text, tags)
 	}
 }
 

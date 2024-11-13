@@ -25,7 +25,14 @@
                 <h1>{{.TagName}}</h1>
                 {{block "recipes" .}}
                     {{range .Recipes}}
-                        <p><a href="/recipe/{{.Webpath}}">{{.Name}}</a></p>
+                        <div style="display: flex; gap: 1rem;">
+                            <a href="/recipe/{{.Webpath}}">{{.Name}}</a>
+                            <div class="search-result">
+                                <div class="search-result1">
+                                    {{.Snippet}}
+                                </div>
+                            </div>
+                        </div>
                     {{end}}
                 {{end}}
             {{end}}

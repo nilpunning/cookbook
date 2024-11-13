@@ -18,7 +18,8 @@ func Setup() *sql.DB {
 			filename TEXT NOT NULL UNIQUE,
 			name TEXT NOT NULL,
 			webpath TEXT NOT NULL,
-			html TEXT NOT NULL
+			html TEXT NOT NULL,
+			text TEXT NOT NULL
 		);
 		CREATE INDEX idx_recipe_webpath ON recipe (webpath);
 		CREATE TABLE recipe_tag (
@@ -28,24 +29,24 @@ func Setup() *sql.DB {
 		);
 		CREATE VIRTUAL TABLE recipe_fts USING fts5(
 			name,
-			html,
+			text,
 			content='recipe',
 			content_rowid='id',
 			tokenize='porter unicode61'
 		);
 		CREATE TRIGGER recipe_ai AFTER INSERT ON recipe BEGIN
-			INSERT INTO recipe_fts(rowid, name, html)
-			VALUES (new.id, new.name, new.html);
+			INSERT INTO recipe_fts(rowid, name, text)
+			VALUES (new.id, new.name, new.text);
 		END;
 		CREATE TRIGGER recipe_ad AFTER DELETE ON recipe BEGIN
-			INSERT INTO recipe_fts(recipe_fts, rowid, name, html)
-			VALUES('delete', old.id, old.name, old.html);
+			INSERT INTO recipe_fts(recipe_fts, rowid, name, text)
+			VALUES('delete', old.id, old.name, old.text);
 		END;
 		CREATE TRIGGER recipe_au AFTER UPDATE ON recipe BEGIN
-			INSERT INTO recipe_fts(recipe_fts, rowid, name, html)
-			VALUES('delete', old.id, old.name, old.html);
-			INSERT INTO recipe_fts(rowid, name, html)
-			VALUES (new.id, new.name, new.html);
+			INSERT INTO recipe_fts(recipe_fts, rowid, name, text)
+			VALUES('delete', old.id, old.name, old.text);
+			INSERT INTO recipe_fts(rowid, name, text)
+			VALUES (new.id, new.name, new.text);
 		END;
 	`)
 	if err != nil {
@@ -54,20 +55,20 @@ func Setup() *sql.DB {
 	return db
 }
 
-func UpsertRecipe(db *sql.DB, filename, name, webpath, html string, tags []string) error {
+func UpsertRecipe(db *sql.DB, filename, name, webpath, html, text string, tags []string) error {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Println("Error beginning transaction:", err)
 		return err
 	}
 	if _, err := tx.Exec(`
-			INSERT INTO recipe (filename, name, webpath, html)
-			VALUES (?, ?, ?, ?)
-			ON CONFLICT(filename) DO UPDATE SET name = ?, webpath = ?, html = ?;
+			INSERT INTO recipe (filename, name, webpath, html, text)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(filename) DO UPDATE SET name = ?, webpath = ?, html = ?, text = ?;
 			DELETE FROM recipe_tag WHERE recipe_filename = ?
 		`,
-		filename, name, webpath, html,
-		name, webpath, html,
+		filename, name, webpath, html, text,
+		name, webpath, html, text,
 		filename); err != nil {
 		log.Printf("Error upserting recipe %s: %v", filename, err)
 		tx.Rollback()
@@ -168,13 +169,14 @@ func GetRecipesGroupedByTag(db *sql.DB) ([]RecipesGroupedByTag, error) {
 type SearchResult struct {
 	Name    string
 	Webpath string
+	Snippet string
 }
 
 func SearchRecipes(db *sql.DB, query string) ([]SearchResult, error) {
 	rows, err := db.Query(`
-		SELECT r.name, r.webpath
+		SELECT r.name, r.webpath, snippet(recipe_fts, 1, '<b>', '</b>', '...', 64)
 		FROM recipe r
-		JOIN recipe_fts fts ON r.id = fts.rowid
+		JOIN recipe_fts ON r.id = recipe_fts.rowid
 		WHERE recipe_fts MATCH ?
 		ORDER BY r.name
 	`, query)
@@ -187,7 +189,7 @@ func SearchRecipes(db *sql.DB, query string) ([]SearchResult, error) {
 	for rows.Next() {
 		var result SearchResult
 
-		if err := rows.Scan(&result.Name, &result.Webpath); err != nil {
+		if err := rows.Scan(&result.Name, &result.Webpath, &result.Snippet); err != nil {
 			return nil, err
 		}
 		results = append(results, result)
