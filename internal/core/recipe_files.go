@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"hallertau/internal/database"
 	"hallertau/internal/markdown"
+	"html/template"
 	"io/fs"
 	"log"
 	"os"
@@ -45,14 +46,9 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 			log.Println("Error converting recipe file:", err)
 			return
 		}
-		text, _, err := markdown.ConvertToString(md.Bytes())
-		if err != nil {
-			log.Println("Error converting recipe file:", err)
-			return
-		}
-		log.Println("=========Poopy=========")
-		log.Println(text)
-		database.UpsertRecipe(s.DB, filename, name, NameToWebpath(name), html, text, tags)
+		var escapedMarkdown bytes.Buffer
+		template.HTMLEscape(&escapedMarkdown, md.Bytes())
+		database.UpsertRecipe(s.DB, filename, name, NameToWebpath(name), html, escapedMarkdown.String(), tags)
 	}
 }
 
