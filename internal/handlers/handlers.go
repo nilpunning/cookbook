@@ -121,6 +121,12 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 	))
 
 	serveMux.HandleFunc("/recipe", func(w http.ResponseWriter, r *http.Request) {
+		bc := makeBaseContext(r)
+		if bc.IsAuthenticated == false {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 		if r.Method == "GET" {
 			data := struct {
 				baseContext
@@ -130,7 +136,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				CancelUrl string
 				DeleteUrl string
 			}{
-				baseContext: makeBaseContext(r),
+				baseContext: bc,
 				Title:       "Add Recipe",
 				CancelUrl:   "/",
 			}
@@ -144,6 +150,12 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 	})
 
 	serveMux.HandleFunc("/edit/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
+		bc := makeBaseContext(r)
+		if bc.IsAuthenticated == false {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 		webpath := r.PathValue("path")
 
 		name, filename, err := database.GetRecipeName(state.DB, webpath)
@@ -172,7 +184,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				CancelUrl string
 				DeleteUrl string
 			}{
-				baseContext: makeBaseContext(r),
+				baseContext: bc,
 				Title:       "Edit " + name,
 				Name:        name,
 				Body:        string(md),
@@ -194,6 +206,12 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 	))
 
 	serveMux.HandleFunc("/delete/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
+		bc := makeBaseContext(r)
+		if bc.IsAuthenticated == false {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 		webpath := r.PathValue("path")
 
 		if r.Method == "GET" {
@@ -213,7 +231,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				Body    template.HTML
 				Webpath string
 			}{
-				baseContext: makeBaseContext(r),
+				baseContext: bc,
 				Title:       "Delete " + name + "?",
 				Name:        name,
 				Body:        template.HTML(html),
