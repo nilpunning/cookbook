@@ -221,7 +221,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		webpath := r.PathValue("path")
 
 		if r.Method == "GET" {
-			name, html, err := database.GetRecipe(state.DB, webpath)
+			name, _, err := database.GetRecipe(state.DB, webpath)
 			if err == sql.ErrNoRows {
 				http.Error(w, "Recipe not found", http.StatusNotFound)
 				return
@@ -235,14 +235,12 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				CsrfField template.HTML
 				Title     string
 				Name      string
-				Body      template.HTML
 				Webpath   string
 			}{
 				baseContext: bc,
 				CsrfField:   csrf.TemplateField(r),
 				Title:       "Delete " + name + "?",
 				Name:        name,
-				Body:        template.HTML(html),
 				Webpath:     "/recipe/" + webpath,
 			}
 			if err := deleteRecipeTemplate.Execute(w, data); err != nil {

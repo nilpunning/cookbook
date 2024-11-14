@@ -21,15 +21,17 @@
     <div id="recipes">
         {{block "recipesBody" .}}
             {{/* By default show recipes grouped by tag */}}
-            {{range .Tags}}
-                <h1>{{.TagName}}</h1>
-                {{block "recipes" .}}
-                    {{range .Recipes}}
-                        <a href="/recipe/{{.Webpath}}" style="font-weight: bold;">{{.Name}}</a>
-                        <div style="white-space: pre; margin: 0.5rem 0 2rem 0;">{{.Snippet}}</div>
+            <div class="tag-list">
+                {{range .Tags}}
+                    <h2>{{.TagName}}</h2>
+                    {{block "recipes" .}}
+                        {{range .Recipes}}
+                            <a href="/recipe/{{.Webpath}}" class="recipe-link">{{.Name}}</a>
+                            <div class="recipe-snippet">{{.Snippet}}</div>
+                        {{end}}
                     {{end}}
                 {{end}}
-            {{end}}
+            </div>
             {{/* When there is a query show the recipes by relevance */}}
             {{template "recipes" .}}
         {{end}}
