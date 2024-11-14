@@ -153,7 +153,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		handleEditRecipe(state, w, r, "")
 	})
 
-	serveMux.HandleFunc("/edit/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
+	serveMux.HandleFunc("/recipe/{path}/edit", func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
 		if bc.IsAuthenticated == false {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -195,7 +195,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				Name:        name,
 				Body:        string(md),
 				CancelUrl:   "/recipe/" + webpath,
-				DeleteUrl:   "/delete/recipe/" + webpath,
+				DeleteUrl:   "/recipe/" + webpath + "/delete",
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -211,7 +211,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		"templates/deleteRecipe.html",
 	))
 
-	serveMux.HandleFunc("/delete/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
+	serveMux.HandleFunc("/recipe/{path}/delete", func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
 		if bc.IsAuthenticated == false {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)

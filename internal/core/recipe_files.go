@@ -20,7 +20,7 @@ var RecipeExt = ".md"
 
 func NameToWebpath(name string) string {
 	title := cases.Title(language.English, cases.Compact).String(name)
-	return strings.ReplaceAll(title, " ", "") + ".html"
+	return strings.ReplaceAll(title, " ", "")
 }
 
 func (s *State) isRecipe(entry fs.FileInfo) bool {

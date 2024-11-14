@@ -81,6 +81,17 @@ input, textarea {
 ol, ul {
   padding-inline-start: 1rem;
 }
+table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+th, td {
+  border: 1px solid var(--gray);
+  padding: 0.5rem;
+}
+th {
+  background-color: var(--light-gray);
+}
 .tags {
   margin: 1.5rem 0;
 }

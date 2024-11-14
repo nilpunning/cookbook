@@ -3,7 +3,7 @@
         <h1 style="display: flex; align-items: center;">
             <span style="margin-right: auto;">{{.Name}}</span>
             {{if .IsAuthenticated}}
-                <a class="no-print" style="margin-left: auto; font-weight: normal; font-size: 1rem;" href="/edit/recipe/{{.Webpath}}">Edit</a>
+                <a class="no-print" style="margin-left: auto; font-weight: normal; font-size: 1rem;" href="/recipe/{{.Webpath}}/edit">Edit</a>
             {{end}}
         </h1>
     </section>
