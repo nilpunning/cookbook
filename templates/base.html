@@ -10,14 +10,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>{{.Title}}</title>
-    
+
     <link rel="stylesheet" href="/vendor/normalize.css">
     <link rel="stylesheet" href="/style.css">
 
     <script src="/vendor/htmx.js"></script>
 </head>
 <body>
-    <header>
+    <header class="no-print">
         <nav style="display: flex; gap: 1rem; align-items: center;">
             <a href="/">Recipes</a>
             {{if .IsAuthenticated}}

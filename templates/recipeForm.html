@@ -1,18 +1,14 @@
 {{define "body"}}
-<div class="recipe-form">
-    <form method="POST">
-        {{ .CsrfField }}
-        <input type="text" name="name" placeholder="Recipe Name" value="{{.Name}}" required>
-        <p>
-            <textarea name="body" rows="20" placeholder="Recipe Content..." required>{{.Body}}</textarea>
-        </p>
-        <p style="display: flex; align-items: center; gap: 1rem;">
-            <button type="submit">Save</button>
-            <a href="{{.CancelUrl}}" style="margin-right: auto;">Cancel</a>
-            {{if .DeleteUrl}}
-                <a href="{{.DeleteUrl}}" style="margin-left: auto;">Delete</a>
-            {{end}}
-        </p>
-    </form>
-</div>
+<form method="POST" class="recipe-form">
+    {{ .CsrfField }}
+    <input type="text" name="name" placeholder="Recipe Name" value="{{.Name}}" required>
+    <textarea name="body" rows="20" placeholder="Recipe Content..." required>{{.Body}}</textarea>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <button type="submit">Save</button>
+        <a href="{{.CancelUrl}}" style="margin-right: auto;">Cancel</a>
+        {{if .DeleteUrl}}
+            <a href="{{.DeleteUrl}}" style="margin-left: auto;">Delete</a>
+        {{end}}
+    </div>
+</form>
 {{end}}

@@ -1,10 +1,13 @@
 :root {
-  --font-serif: "Apple Garamond", Palatino, "Bookman Old Style", Georgia, "New York", "Times New Roman", Times, serif;
-  --font-sans: "Gill Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  --font-serif: Palatino, "Bookman Old Style", Georgia, "New York", "Times New Roman", Times, serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   font-family: var(--font-serif);
   --dark-gray: rgb(90, 90, 90);
   --gray: rgb(220, 220, 220);
   --light-gray: rgb(240, 240, 240);
+  --dark-blue: rgb(0, 11, 134);
+  --blue: rgb(68, 100, 199);
+  --light-blue: rgb(112, 158, 230);
 }
 body {
   margin: 0 auto;
@@ -26,17 +29,19 @@ h2 {
   margin-bottom: 0;
 }
 header {
-  padding: 0.5rem 0;
   border-bottom: 2px solid black;
+  padding: 0.5rem 0;
+  margin: 1rem;
 }
 header:hover a {
   text-decoration: none;
 }
-header, main {
-  margin: 1rem;
-}
 main {
-  /* overflow-wrap: break-word; */
+  margin: 0 1rem;
+  word-break: break-word;
+}
+main a {
+  word-break: break-all;
 }
 section {
   margin: 0;
@@ -52,13 +57,14 @@ a:hover {
   text-decoration: underline;
 }
 input, button {
+  color: black;
   font-family: var(--font-sans);
   border-radius: 5px;
 }
 input[type="button"], button {
   border: 1px solid var(--gray);
   background-color: var(--light-gray);
-  padding: 0.5rem 2rem;
+  padding: 0.5rem 1.5rem;
 }
 input, textarea {
   font-family: var(--font-sans);
@@ -67,22 +73,29 @@ input, textarea {
   border-radius: 5px;
 }
 :focus {
-  outline: none;
-  box-shadow: 0 0 0 2px hsla(220, 100%, 50%, 80%);
+  outline: 2px solid var(--light-blue);
 }
 ::placeholder {
   color: var(--dark-gray);
 }
+ol, ul {
+  padding-inline-start: 1rem;
+}
+.tags {
+  margin: 1.5rem 0;
+}
 .tag {
+  display: inline-block;
   font-family: var(--font-sans);
+  font-weight: lighter;
   border: 1px solid var(--gray);
-  margin-right: 0.25rem;
+  margin: 0.25rem 0.5rem 0.25rem 0;
   padding: 0.25rem 1rem;
-  border-radius: 15px;
+  border-radius: 7px;
 }
 .search-form {
     width: 100%;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     display: flex;
     gap: 0.5rem;
 }
@@ -103,11 +116,19 @@ input, textarea {
 .recipe-snippet {
   color: var(--dark-gray);
   white-space: pre;
-  margin: 0.5rem 0 2rem 0;
+  margin: 0.5rem 0 1rem 0;
 }
-.recipe-form input, textarea {
-    width: 100%;
+.recipe-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 .recipe-body a {
   font-family: var(--font-serif);
+  color: var(--blue);
+}
+@media print {
+  .no-print, .no-print * {
+    display: none !important;
+  }
 }

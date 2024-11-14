@@ -1,10 +1,10 @@
 {{define "body"}}
-    <form method="POST">
+    <form method="POST" class="recipe-form">
         {{ .CsrfField }}
         <p>Are you sure you want to delete <strong>{{.Name}}</strong>?</p>
-        <p style="display: flex; align-items: center;">
-            <button type="submit" style="margin-right: auto;">Delete</button>
-            <a href="{{.Webpath}}" style="margin-left: auto;">Cancel</a>
-        </p>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <button type="submit">Delete</button>
+            <a href="{{.Webpath}}" style="margin-right: auto;">Cancel</a>
+        </div>
     </form>
 {{end}}
