@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"html/template"
 	"log"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -173,9 +174,41 @@ type SearchResult struct {
 	Snippet template.HTML
 }
 
+func cleanSnippet(snippet template.HTML) template.HTML {
+	lines := strings.Split(string(snippet), "\n")
+
+	trimmedLines := []string{}
+	for _, line := range lines {
+		l := strings.TrimSpace(line)
+		if l != "" {
+			trimmedLines = append(trimmedLines, l)
+		}
+	}
+
+	n := 4
+	start := 0
+	end := len(trimmedLines) - 1
+
+	// Find first line with >= n chars
+	for start < len(trimmedLines) && len(trimmedLines[start]) < n {
+		start++
+	}
+
+	// Find last line with >= n chars
+	for end >= 0 && len(trimmedLines[end]) < n {
+		end--
+	}
+
+	if start <= end {
+		return template.HTML(strings.Join(trimmedLines[start:end+1], "\n"))
+	}
+
+	return snippet
+}
+
 func SearchRecipes(db *sql.DB, query string) ([]SearchResult, error) {
 	rows, err := db.Query(`
-		SELECT r.name, r.webpath, snippet(recipe_fts, 1, '<b>', '</b>', ' ... ', 20)
+		SELECT r.name, r.webpath, snippet(recipe_fts, 1, '<b>', '</b>', '', 20)
 		FROM recipe r
 		JOIN recipe_fts ON r.id = recipe_fts.rowid
 		WHERE recipe_fts MATCH ?
@@ -189,10 +222,10 @@ func SearchRecipes(db *sql.DB, query string) ([]SearchResult, error) {
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-
 		if err := rows.Scan(&result.Name, &result.Webpath, &result.Snippet); err != nil {
 			return nil, err
 		}
+		result.Snippet = cleanSnippet(result.Snippet)
 		results = append(results, result)
 	}
 	if err = rows.Err(); err != nil {

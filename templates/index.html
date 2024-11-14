@@ -25,10 +25,8 @@
                 <h1>{{.TagName}}</h1>
                 {{block "recipes" .}}
                     {{range .Recipes}}
-                        <p>
-                            <a href="/recipe/{{.Webpath}}">{{.Name}}</a>
-                            <div style="white-space: pre">{{.Snippet}}</div>
-                        </p>
+                        <a href="/recipe/{{.Webpath}}" style="font-weight: bold;">{{.Name}}</a>
+                        <div style="white-space: pre; margin: 0.5rem 0 2rem 0;">{{.Snippet}}</div>
                     {{end}}
                 {{end}}
             {{end}}
