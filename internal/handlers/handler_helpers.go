@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -8,6 +10,18 @@ import (
 
 	"hallertau/internal/core"
 )
+
+func ExclusiveWriteFile(name string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if err1 := f.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	return err
+}
 
 func handleEditRecipe(s core.State, w http.ResponseWriter, r *http.Request, prevFilename string) {
 	if err := r.ParseForm(); err != nil {
@@ -26,8 +40,17 @@ func handleEditRecipe(s core.State, w http.ResponseWriter, r *http.Request, prev
 	filename := name + core.RecipeExt
 	fp := filepath.Join(s.Config.Server.RecipesPath, filename)
 
-	if err := os.WriteFile(fp, []byte(body), 0644); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	writeFn := ExclusiveWriteFile
+	if filename == prevFilename {
+		writeFn = os.WriteFile
+	}
+
+	if err := writeFn(fp, []byte(body), 0644); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			http.Error(w, "A recipe with the name already exists.", http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -40,5 +63,7 @@ func handleEditRecipe(s core.State, w http.ResponseWriter, r *http.Request, prev
 	}
 
 	escapedPath := url.PathEscape(core.NameToWebpath(name))
-	http.Redirect(w, r, "/recipe/"+escapedPath, http.StatusSeeOther)
+
+	w.Header().Set("HX-Redirect", "/recipe/"+escapedPath)
+	w.WriteHeader(http.StatusOK)
 }
