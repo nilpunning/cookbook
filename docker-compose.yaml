@@ -7,5 +7,6 @@ services:
     volumes:
       - ./hallertau.toml:/hallertau.toml:ro
       - ./recipes:/recipes:rw
+      - /etc/ssl/certs:/etc/ssl/certs:ro
     ports:
       - "127.0.0.1:7004:8080"
