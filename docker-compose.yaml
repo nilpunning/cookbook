@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  hallertau:
+    image: hallertau:version
+    restart: unless-stopped
+    volumes:
+      - ./hallertau.toml:/hallertau.toml:ro
+      - ./recipes:/recipes:rw
+    ports:
+      - "127.0.0.1:7004:8080"

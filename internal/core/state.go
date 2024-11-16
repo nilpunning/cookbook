@@ -8,6 +8,8 @@ import (
 	"github.com/gorilla/sessions"
 )
 
+var Version = "dev"
+
 type Config struct {
 	Server struct {
 		Address       string

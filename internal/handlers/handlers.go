@@ -21,6 +21,11 @@ type baseContext struct {
 
 func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, logoutURL string) {
 
+	// serveMux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+	// 	w.WriteHeader(http.StatusOK)
+	// 	w.Write([]byte(core.Version))
+	// })
+
 	makeBaseContext := func(r *http.Request) baseContext {
 		return baseContext{
 			IsAuthenticated: auth.IsAuthenticated(state.SessionStore, r),
