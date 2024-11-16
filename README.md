@@ -17,18 +17,12 @@ caddy run --config Caddyfile
 ## Production
 
 ```sh
-go build --tags fts5
+./build.sh
 ./hallertau hallertau.toml
 ```
 
 ## Deployment example
-[push.sh](./push.sh)
-- takes a server as an argument
-- builds an amd64 Linux executable 
-- builds a [Docker](./Dockerfile) image
-- pushes the image to the specified server
 ```sh
-./push.sh server.example.com
+./build.sh
+docker compose up
 ```
-
-On the server [docker-compose](./docker-compose.yaml) can be used.
