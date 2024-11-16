@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   hallertau:
-    build .
+    build: .
     restart: unless-stopped
     volumes:
       - ./hallertau.toml:/hallertau.toml:ro
