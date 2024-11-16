@@ -1,9 +1,7 @@
-FROM scratch
-
-ARG VERSION
+FROM debian:bookworm-slim
 
 COPY hallertau /hallertau
 COPY static /static
 COPY templates /templates
 
-ENTRYPOINT ["/hallertau", "hallertau.toml"]
+CMD ["/hallertau", "hallertau.toml"]
