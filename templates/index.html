@@ -1,48 +1,48 @@
 {{define "body"}}
-    <form
-        class="search-form no-print"
+<form
+    id="search-form"
+    class="no-print"
+    hx-get="/"
+    hx-trigger="submit"
+    hx-target="#recipes"
+    hx-push-url="true"
+>
+    <input
+        type="text"
+        name="q"
+        placeholder="Search recipes..."
+        value="{{.Query}}"
         hx-get="/"
-        hx-trigger="submit"
+        hx-trigger="input changed delay:250ms, search"
         hx-target="#recipes"
         hx-push-url="true"
     >
-        <input
-            type="text"
-            name="q"
-            placeholder="Search recipes..."
-            value="{{.Query}}"
+    <span style="width: 100%; display: flex; gap: 0.5rem;">
+        <button style="margin-right: auto;">Search</button>
+        <button
             hx-get="/"
-            hx-trigger="input changed delay:250ms, search"
-            hx-target="#recipes"
-            hx-push-url="true"
-        >
-        <span style="width: 100%; display: flex; gap: 0.5rem;">
-            <button type="search" style="margin-right: auto;">Search</button>
-            <button
-             type="reset"
-             hx-get="/"
-             hx-on::after-request="this.reset()"
-             style="margin-left: auto;">
-             Clear
-        </button>
-        </span>
-    </form>
-    <div id="recipes">
-        {{block "recipesBody" .}}
-            {{/* By default show recipes grouped by tag */}}
-            <div class="tag-list">
-                {{range .Tags}}
-                    <h2>{{.TagName}}</h2>
-                    {{block "recipes" .}}
-                        {{range .Recipes}}
-                            <a href="/recipe/{{.Webpath}}" class="recipe-link">{{.Name}}</a>
-                            <div class="recipe-snippet">{{.Snippet}}</div>
-                        {{end}}
+            hx-target="#body"
+            style="margin-left: auto;">
+            Clear
+    </button>
+    </span>
+</form>
+<div id="recipes">
+    {{block "recipesBody" .}}
+        {{/* By default show recipes grouped by tag */}}
+        <div class="tag-list">
+            {{range .Tags}}
+                <h2>{{.TagName}}</h2>
+                {{block "recipes" .}}
+                    {{range .Recipes}}
+                        <a href="/recipe/{{.Webpath}}" class="recipe-link">{{.Name}}</a>
+                        <div class="recipe-snippet">{{.Snippet}}</div>
                     {{end}}
                 {{end}}
-            </div>
-            {{/* When there is a query show the recipes by relevance */}}
-            {{template "recipes" .}}
-        {{end}}
-    </div>
+            {{end}}
+        </div>
+        {{/* When there is a query show the recipes by relevance */}}
+        {{template "recipes" .}}
+    {{end}}
+</div>
 {{end}}

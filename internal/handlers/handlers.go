@@ -79,8 +79,13 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		htmxTarget := r.Header.Get("Hx-Target")
 
 		templateName := "base.html"
-		if isHtmx && htmxTarget == "recipes" {
-			templateName = "recipesBody"
+		if isHtmx {
+			if htmxTarget == "recipes" {
+				templateName = "recipesBody"
+			}
+			if htmxTarget == "body" {
+				templateName = "body"
+			}
 		}
 
 		if err := indexTemplate.ExecuteTemplate(w, templateName, context); err != nil {
