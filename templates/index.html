@@ -7,7 +7,7 @@
         hx-push-url="true"
     >
         <input
-            type="search"
+            type="text"
             name="q"
             placeholder="Search recipes..."
             value="{{.Query}}"
@@ -16,7 +16,16 @@
             hx-target="#recipes"
             hx-push-url="true"
         >
-        <button type="submit">Search</button>
+        <span style="width: 100%; display: flex; gap: 0.5rem;">
+            <button type="search" style="margin-right: auto;">Search</button>
+            <button
+             type="reset"
+             hx-get="/"
+             hx-on::after-request="this.reset()"
+             style="margin-left: auto;">
+             Clear
+        </button>
+        </span>
     </form>
     <div id="recipes">
         {{block "recipesBody" .}}
