@@ -88,6 +88,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 			}
 		}
 
+		w.Header().Set("Vary", "HX-Request")
+
 		if err := indexTemplate.ExecuteTemplate(w, templateName, context); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
