@@ -5,8 +5,8 @@ services:
     build: .
     restart: unless-stopped
     volumes:
-      - ./hallertau.toml:/hallertau.toml:ro
-      - ./recipes:/recipes:rw
+      - ./hallertau.toml:/hallertau/hallertau.toml:ro
+      - ./recipes:/hallertau/recipes:rw
       - /etc/ssl/certs:/etc/ssl/certs:ro
     ports:
       - "127.0.0.1:7004:8080"
