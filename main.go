@@ -7,8 +7,8 @@ import (
 
 	"hallertau/internal/auth"
 	"hallertau/internal/core"
-	"hallertau/internal/database"
 	"hallertau/internal/handlers"
+	"hallertau/internal/search"
 
 	"github.com/gorilla/csrf"
 )
@@ -20,11 +20,11 @@ func main() {
 	cfg := core.LoadConfig(os.Args[1])
 
 	var state = core.State{
-		DB:           database.Setup(),
+		Index:        search.NewIndex(),
 		SessionStore: auth.NewSessionStore(cfg.Server.SessionSecret),
 		Config:       cfg,
 	}
-	defer state.DB.Close()
+	defer state.Index.Close()
 
 	state.LoadRecipes()
 	go state.MonitorRecipesDirectory()

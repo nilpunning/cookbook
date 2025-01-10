@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"hallertau/internal/auth"
 	"hallertau/internal/core"
-	"hallertau/internal/database"
+	"hallertau/internal/search"
 	"html/template"
 	"net/http"
 	"os"
@@ -49,8 +49,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 		context := struct {
 			baseContext
-			Recipes []database.SearchResult
-			Tags    []database.RecipesGroupedByTag
+			Recipes []search.SearchResult
+			Tags    []search.RecipesGroupedByTag
 			Title   string
 			Query   string
 		}{
@@ -60,14 +60,14 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		}
 
 		if query != "" {
-			recipes, err := database.SearchRecipes(state.DB, query)
+			recipes, err := search.SearchRecipes(state.Index, query)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			context.Recipes = recipes
 		} else {
-			tags, err := database.GetRecipesGroupedByTag(state.DB)
+			tags, err := search.GetRecipesGroupedByTag(state.Index)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -103,7 +103,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 	serveMux.HandleFunc("/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
 		webpath := r.PathValue("path")
 
-		var name, html, err = database.GetRecipe(state.DB, webpath)
+		_, name, html, err := search.GetRecipe(state.Index, webpath)
 		switch err {
 		case sql.ErrNoRows:
 			http.Error(w, "Recipe not found", http.StatusNotFound)
@@ -136,7 +136,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 	serveMux.HandleFunc("/recipe", func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
-		if bc.IsAuthenticated == false {
+		if !bc.IsAuthenticated {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -167,14 +167,14 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 	serveMux.HandleFunc("/recipe/{path}/edit", func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
-		if bc.IsAuthenticated == false {
+		if !bc.IsAuthenticated {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		webpath := r.PathValue("path")
 
-		name, filename, err := database.GetRecipeName(state.DB, webpath)
+		filename, name, _, err := search.GetRecipe(state.Index, webpath)
 		if err == sql.ErrNoRows {
 			http.Error(w, "Recipe not found", http.StatusNotFound)
 			return
@@ -225,7 +225,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 	serveMux.HandleFunc("/recipe/{path}/delete", func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
-		if bc.IsAuthenticated == false {
+		if !bc.IsAuthenticated {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -233,7 +233,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		webpath := r.PathValue("path")
 
 		if r.Method == "GET" {
-			name, _, err := database.GetRecipe(state.DB, webpath)
+			_, name, _, err := search.GetRecipe(state.Index, webpath)
 			if err == sql.ErrNoRows {
 				http.Error(w, "Recipe not found", http.StatusNotFound)
 				return
@@ -261,13 +261,14 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 			return
 		}
 
-		_, filename, err := database.GetRecipeName(state.DB, webpath)
+		filename, _, _, err := search.GetRecipe(state.Index, webpath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
+
 		if err := os.Remove(fp); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

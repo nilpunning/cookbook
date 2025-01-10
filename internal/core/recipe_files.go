@@ -2,8 +2,8 @@ package core
 
 import (
 	"bytes"
-	"hallertau/internal/database"
 	"hallertau/internal/markdown"
+	"hallertau/internal/search"
 	"html/template"
 	"io/fs"
 	"log"
@@ -48,7 +48,7 @@ func (s *State) upsertRecipe(filename string, entry fs.FileInfo) {
 		}
 		var escapedMarkdown bytes.Buffer
 		template.HTMLEscape(&escapedMarkdown, md.Bytes())
-		database.UpsertRecipe(s.DB, filename, name, NameToWebpath(name), html, escapedMarkdown.String(), tags)
+		search.UpsertRecipe(s.Index, filename, name, NameToWebpath(name), html, escapedMarkdown.String(), tags)
 	}
 }
 
@@ -94,7 +94,8 @@ func (s *State) MonitorRecipesDirectory() {
 				s.upsertRecipe(filename, entry)
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-				database.DeleteRecipe(s.DB, filename)
+				name := strings.TrimSuffix(filename, RecipeExt)
+				search.DeleteRecipe(s.Index, NameToWebpath(name))
 			}
 			log.Println("Event:", event)
 		case err, ok := <-watcher.Errors:

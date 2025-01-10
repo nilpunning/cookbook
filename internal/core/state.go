@@ -1,10 +1,10 @@
 package core
 
 import (
-	"database/sql"
 	"log"
 
 	"github.com/BurntSushi/toml"
+	"github.com/blevesearch/bleve/v2"
 	"github.com/gorilla/sessions"
 )
 
@@ -27,7 +27,7 @@ type Config struct {
 }
 
 type State struct {
-	DB           *sql.DB
+	Index        bleve.Index
 	SessionStore *sessions.CookieStore
 	Config       Config
 }
