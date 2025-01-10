@@ -5,11 +5,11 @@ go 1.23.1
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/blevesearch/bleve/v2 v2.4.4
+	github.com/blevesearch/bleve_index_api v1.1.12
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gorilla/csrf v1.7.2
 	github.com/gorilla/sessions v1.4.0
-	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/yuin/goldmark v1.7.8
 	golang.org/x/oauth2 v0.21.0
 	golang.org/x/text v0.16.0
@@ -18,7 +18,6 @@ require (
 require (
 	github.com/RoaringBitmap/roaring v1.9.3 // indirect
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
-	github.com/blevesearch/bleve_index_api v1.1.12 // indirect
 	github.com/blevesearch/geo v0.1.20 // indirect
 	github.com/blevesearch/go-faiss v1.0.24 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect

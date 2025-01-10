@@ -1,6 +1,6 @@
-FROM debian:bookworm-slim
+FROM scratch
 
-WORKDIR /hallertau
+WORKDIR hallertau
 
 COPY hallertau hallertau
 COPY static static
@@ -10,4 +10,4 @@ ARG UID=1000
 ARG GID=1000
 USER ${UID}:${GID}
 
-CMD ["./hallertau", "hallertau.toml"]
+ENTRYPOINT ["/hallertau/hallertau", "hallertau.toml"]
