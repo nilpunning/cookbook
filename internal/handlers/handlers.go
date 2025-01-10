@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"hallertau/internal/auth"
 	"hallertau/internal/core"
 	"hallertau/internal/search"
@@ -105,8 +104,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 		_, name, html, err := search.GetRecipe(state.Index, webpath)
 		switch err {
-		case sql.ErrNoRows:
-			http.Error(w, "Recipe not found", http.StatusNotFound)
+		case search.ErrNotFound:
+			http.Error(w, err.Error(), http.StatusNotFound)
 		case nil:
 			data := struct {
 				baseContext
@@ -175,8 +174,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		webpath := r.PathValue("path")
 
 		filename, name, _, err := search.GetRecipe(state.Index, webpath)
-		if err == sql.ErrNoRows {
-			http.Error(w, "Recipe not found", http.StatusNotFound)
+		if err == search.ErrNotFound {
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		if err != nil {
@@ -234,8 +233,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 		if r.Method == "GET" {
 			_, name, _, err := search.GetRecipe(state.Index, webpath)
-			if err == sql.ErrNoRows {
-				http.Error(w, "Recipe not found", http.StatusNotFound)
+			if err == search.ErrNotFound {
+				http.Error(w, err.Error(), http.StatusNotFound)
 				return
 			}
 			if err != nil {
@@ -262,6 +261,10 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		}
 
 		filename, _, _, err := search.GetRecipe(state.Index, webpath)
+		if err == search.ErrNotFound {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

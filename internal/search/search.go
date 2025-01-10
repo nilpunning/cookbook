@@ -1,7 +1,7 @@
 package search
 
 import (
-	"fmt"
+	"errors"
 	"html/template"
 	"log"
 	"sort"
@@ -12,16 +12,6 @@ import (
 
 	index "github.com/blevesearch/bleve_index_api"
 )
-
-// todo: is this even necessary?
-type Recipe struct {
-	Filename string   `json:"filename"`
-	Name     string   `json:"name"`
-	Webpath  string   `json:"webpath"`
-	HTML     string   `json:"html"`
-	Markdown string   `json:"markdown"`
-	Tags     []string `json:"tags"`
-}
 
 func NewIndex() bleve.Index {
 	recipeMapping := bleve.NewDocumentMapping()
@@ -48,7 +38,14 @@ func NewIndex() bleve.Index {
 }
 
 func UpsertRecipe(index bleve.Index, filename, name, webpath, html, markdown string, tags []string) error {
-	recipe := Recipe{
+	recipe := struct {
+		Filename string   `json:"filename"`
+		Name     string   `json:"name"`
+		Webpath  string   `json:"webpath"`
+		HTML     string   `json:"html"`
+		Markdown string   `json:"markdown"`
+		Tags     []string `json:"tags"`
+	}{
 		Filename: filename,
 		Name:     name,
 		Webpath:  webpath,
@@ -60,15 +57,18 @@ func UpsertRecipe(index bleve.Index, filename, name, webpath, html, markdown str
 }
 
 func DeleteRecipe(index bleve.Index, webpath string) error {
-	fmt.Println("Deleting", webpath)
 	return index.Delete(webpath)
 }
 
-// todo: refactor?
+var ErrNotFound = errors.New("recipe not found")
+
 func GetRecipe(idx bleve.Index, webpath string) (string, string, string, error) {
 	doc, err := idx.Document(webpath)
 	if err != nil {
 		return "", "", "", err
+	}
+	if doc == nil {
+		return "", "", "", ErrNotFound
 	}
 
 	var filename, name, html string
@@ -96,6 +96,7 @@ func GetRecipesGroupedByTag(index bleve.Index) ([]RecipesGroupedByTag, error) {
 	query := bleve.NewMatchAllQuery()
 	searchRequest := bleve.NewSearchRequest(query)
 	searchRequest.Fields = []string{"name", "webpath", "tags"}
+	searchRequest.SortBy([]string{"webpath"})
 	searchRequest.Size = 1000
 
 	searchResults, err := index.Search(searchRequest)
@@ -126,7 +127,6 @@ func GetRecipesGroupedByTag(index bleve.Index) ([]RecipesGroupedByTag, error) {
 	}
 
 	// Convert map to slice and sort
-	// TODO: can this be done in the original query?
 	var result []RecipesGroupedByTag
 	for tag, recipes := range tagMap {
 		result = append(result, RecipesGroupedByTag{
@@ -147,41 +147,10 @@ type SearchResult struct {
 	Snippet template.HTML
 }
 
-func cleanSnippet(snippet template.HTML) template.HTML {
-	lines := strings.Split(string(snippet), "\n")
-
-	trimmedLines := []string{}
-	for _, line := range lines {
-		l := strings.TrimSpace(line)
-		if l != "" {
-			trimmedLines = append(trimmedLines, l)
-		}
-	}
-
-	n := 4
-	start := 0
-	end := len(trimmedLines) - 1
-
-	for start < len(trimmedLines) && len(trimmedLines[start]) < n {
-		start++
-	}
-
-	for end >= 0 && len(trimmedLines[end]) < n {
-		end--
-	}
-
-	if start <= end {
-		return template.HTML(strings.Join(trimmedLines[start:end+1], "\n"))
-	}
-
-	return snippet
-}
-
 func SearchRecipes(index bleve.Index, query string) ([]SearchResult, error) {
 	searchQuery := bleve.NewQueryStringQuery(query)
 	searchRequest := bleve.NewSearchRequest(searchQuery)
 	searchRequest.Fields = []string{"name", "webpath", "markdown"}
-	// todo: make this highligher prettier, like cleanSnippet, but using bleve's interfaces
 	highlight := bleve.NewHighlight()
 	highlight.AddField("name")
 	highlight.AddField("markdown")
