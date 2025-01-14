@@ -13,7 +13,7 @@ import (
 	index "github.com/blevesearch/bleve_index_api"
 )
 
-func NewIndex() bleve.Index {
+func NewIndex(language string) bleve.Index {
 	recipeMapping := bleve.NewDocumentMapping()
 
 	keywordMapping := bleve.NewKeywordFieldMapping()
@@ -23,7 +23,7 @@ func NewIndex() bleve.Index {
 	recipeMapping.AddFieldMappingsAt("tags", keywordMapping)
 
 	englishMapping := bleve.NewTextFieldMapping()
-	englishMapping.Analyzer = "en"
+	englishMapping.Analyzer = language
 	recipeMapping.AddFieldMappingsAt("name", englishMapping)
 	recipeMapping.AddFieldMappingsAt("markdown", englishMapping)
 

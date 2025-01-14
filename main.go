@@ -20,7 +20,7 @@ func main() {
 	cfg := core.LoadConfig(os.Args[1])
 
 	var state = core.State{
-		Index:        search.NewIndex(),
+		Index:        search.NewIndex(cfg.Server.Language),
 		SessionStore: auth.NewSessionStore(cfg.Server.SessionSecret),
 		Config:       cfg,
 	}
