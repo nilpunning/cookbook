@@ -12,11 +12,11 @@ var Version = "dev"
 
 type Config struct {
 	Server struct {
-		Address       string
-		RecipesPath   string
-		SessionSecret string
-		CSRFKey       string
-		Language      string
+		Address        string
+		RecipesPath    string
+		SessionSecrets []string
+		CSRFKey        string
+		Language       string
 	}
 	OIDC struct {
 		Issuer             string

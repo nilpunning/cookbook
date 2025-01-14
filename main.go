@@ -21,7 +21,7 @@ func main() {
 
 	var state = core.State{
 		Index:        search.NewIndex(cfg.Server.Language),
-		SessionStore: auth.NewSessionStore(cfg.Server.SessionSecret),
+		SessionStore: auth.NewSessionStore(cfg.Server.SessionSecrets),
 		Config:       cfg,
 	}
 	defer state.Index.Close()
