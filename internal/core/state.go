@@ -17,6 +17,7 @@ type Config struct {
 		SessionSecrets []string
 		CSRFKey        string
 		Language       string
+		SecureCookies  bool
 	}
 	OIDC struct {
 		Issuer             string

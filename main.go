@@ -21,7 +21,7 @@ func main() {
 
 	var state = core.State{
 		Index:        search.NewIndex(cfg.Server.Language),
-		SessionStore: auth.NewSessionStore(cfg.Server.SessionSecrets),
+		SessionStore: auth.NewSessionStore(cfg.Server.SessionSecrets, cfg.Server.SecureCookies),
 		Config:       cfg,
 	}
 	defer state.Index.Close()
@@ -38,7 +38,11 @@ func main() {
 	auth.AddOIDCAuth(serveMux, state, loginURL)
 	handlers.AddHandlers(serveMux, state, loginURL, "/auth/oidc/logout")
 
-	csrfMiddleware := csrf.Protect([]byte(state.Config.Server.CSRFKey))
+	log.Println(cfg.Server.SecureCookies)
+	csrfMiddleware := csrf.Protect(
+		[]byte(state.Config.Server.CSRFKey),
+		csrf.Secure(cfg.Server.SecureCookies),
+	)
 
 	log.Println("Server starting on", state.Config.Server.Address)
 	err := http.ListenAndServe(

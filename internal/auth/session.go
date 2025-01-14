@@ -9,14 +9,14 @@ import (
 
 var sessionKey = "session"
 
-func NewSessionStore(secrets []string) *sessions.CookieStore {
+func NewSessionStore(secrets []string, secureCookies bool) *sessions.CookieStore {
 	secret_bytes := [][]byte{}
 	for _, b := range secrets {
 		secret_bytes = append(secret_bytes, []byte(b))
 	}
 	store := sessions.NewCookieStore(secret_bytes...)
 	store.MaxAge(60 * 60 * 24)
-	store.Options.Secure = true
+	store.Options.Secure = secureCookies
 	store.Options.HttpOnly = true
 	return store
 }
