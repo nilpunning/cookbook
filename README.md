@@ -18,7 +18,7 @@ caddy run --config Caddyfile
 
 ```sh
 ./build.sh
-./hallertau hallertau.toml
+./hallertau config.toml
 ```
 
 ## Deployment example

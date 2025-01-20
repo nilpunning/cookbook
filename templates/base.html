@@ -21,11 +21,13 @@
     <header class="no-print">
         <nav style="display: flex; gap: 1rem; align-items: center;">
             <a href="/">Recipes</a>
-            {{if .IsAuthenticated}}
-                <a href="/recipe" style="margin-right: auto;">Add</a>
-                <a href="{{.LogoutUrl}}" style="margin-left: auto;">Logout</a>
-            {{else}}
-                <a href="{{.LoginUrl}}" style="margin-left: auto;">Login</a>
+            {{if .ShowAuth}}
+                {{if .IsAuthenticated}}
+                    <a href="/recipe" style="margin-right: auto;">Add</a>
+                    <a href="{{.LogoutUrl}}" style="margin-left: auto;">Logout</a>
+                {{else}}
+                    <a href="{{.LoginUrl}}" style="margin-left: auto;">Login</a>
+                {{end}}
             {{end}}
         </nav>
     </header>

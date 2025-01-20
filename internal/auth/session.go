@@ -1,7 +1,8 @@
 package auth
 
 import (
-	"log"
+	"encoding/base64"
+	"log/slog"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -11,8 +12,12 @@ var sessionKey = "session"
 
 func NewSessionStore(secrets []string, secureCookies bool) *sessions.CookieStore {
 	secret_bytes := [][]byte{}
-	for _, b := range secrets {
-		secret_bytes = append(secret_bytes, []byte(b))
+	for _, s := range secrets {
+		d, err := base64.RawStdEncoding.DecodeString(s)
+		if err != nil {
+			panic(err)
+		}
+		secret_bytes = append(secret_bytes, d)
 	}
 	store := sessions.NewCookieStore(secret_bytes...)
 	store.MaxAge(60 * 60 * 24)
@@ -41,8 +46,13 @@ func GetSession(store *sessions.CookieStore, r *http.Request) (*sessions.Session
 func IsAuthenticated(store *sessions.CookieStore, r *http.Request) bool {
 	session, err := GetSession(store, r)
 	if err != nil {
-		log.Println("Error getting session:", err)
-		return false
+		if err.Error() == "securecookie: the value is not valid" {
+			ClearSession(store, r, nil)
+			return false
+		} else {
+			slog.Error(err.Error())
+			return false
+		}
 	}
 	return session.Values["sub"] != nil
 }

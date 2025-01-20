@@ -10,4 +10,4 @@ ARG UID=1000
 ARG GID=1000
 USER ${UID}:${GID}
 
-ENTRYPOINT ["/hallertau/hallertau", "hallertau.toml"]
+ENTRYPOINT ["/hallertau/hallertau", "-c", "config.toml"]

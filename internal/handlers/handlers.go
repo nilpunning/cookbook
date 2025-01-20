@@ -13,6 +13,7 @@ import (
 )
 
 type baseContext struct {
+	ShowAuth        bool
 	IsAuthenticated bool
 	LoginUrl        string
 	LogoutUrl       string
@@ -27,6 +28,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 
 	makeBaseContext := func(r *http.Request) baseContext {
 		return baseContext{
+			ShowAuth:        loginURL != "" && logoutURL != "",
 			IsAuthenticated: auth.IsAuthenticated(state.SessionStore, r),
 			LoginUrl:        loginURL,
 			LogoutUrl:       logoutURL,

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/base64"
+	"flag"
 	"log"
 	"net/http"
-	"os"
+	"syscall"
 
 	"hallertau/internal/auth"
 	"hallertau/internal/core"
@@ -11,13 +13,12 @@ import (
 	"hallertau/internal/search"
 
 	"github.com/gorilla/csrf"
+	"github.com/gorilla/securecookie"
+	"golang.org/x/term"
 )
 
-func main() {
-	// Recipes path must be a folder that exists, if it doesn't exist or is deleted after the
-	// program starts, recipe changes will not be monitored.
-
-	cfg := core.LoadConfig(os.Args[1])
+func serve(configPath string) {
+	cfg := core.LoadConfig(configPath)
 
 	var state = core.State{
 		Index:        search.NewIndex(cfg.Server.Language),
@@ -34,11 +35,16 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	serveMux.Handle("/", fs)
 
-	loginURL := "/auth/oidc"
-	auth.AddOIDCAuth(serveMux, state, loginURL)
-	handlers.AddHandlers(serveMux, state, loginURL, "/auth/oidc/logout")
+	var loginURL, logoutURL string
+	if cfg.OIDC != nil {
+		loginURL, logoutURL = auth.AddOIDCAuth(serveMux, state, "/auth/oidc")
+	} else {
+		if cfg.FormBasedAuthUsers != nil {
+			loginURL, logoutURL = auth.AddFormBasedAuth(serveMux, state, "/auth/form")
+		}
+	}
+	handlers.AddHandlers(serveMux, state, loginURL, logoutURL)
 
-	log.Println(cfg.Server.SecureCookies)
 	csrfMiddleware := csrf.Protect(
 		[]byte(state.Config.Server.CSRFKey),
 		csrf.Secure(cfg.Server.SecureCookies),
@@ -52,4 +58,46 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func main() {
+	// Recipes path must be a folder that exists, if it doesn't exist or is deleted after the
+	// program starts, recipe changes will not be monitored.
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// Parse command-line arguments
+	configPath := flag.String("c", "", "Start server with config toml file. Ex. -c config.toml")
+	password_hash := flag.Bool("p", false, "Hash password for form based authentication.")
+	help := flag.Bool("h", false, "Print help.")
+	key := flag.Bool("k", false, "Generates a new key which can be used for secrets in config.")
+	flag.Parse()
+
+	if *help {
+		flag.Usage()
+		return
+	}
+
+	if *password_hash {
+		log.Println("Enter password:")
+		b, err := term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			panic(err)
+		}
+		log.Println(base64.RawStdEncoding.EncodeToString(b))
+		return
+	}
+
+	if *key {
+		b := securecookie.GenerateRandomKey(32)
+		log.Println(base64.RawStdEncoding.EncodeToString(b))
+		return
+	}
+
+	if *configPath != "" {
+		serve(*configPath)
+		return
+	}
+
+	flag.Usage()
 }

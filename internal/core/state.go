@@ -19,13 +19,14 @@ type Config struct {
 		Language       string
 		SecureCookies  bool
 	}
-	OIDC struct {
+	OIDC *struct {
 		Issuer             string
 		EndSessionEndpoint string
 		ClientID           string
 		ClientSecret       string
 		RedirectURI        string
 	}
+	FormBasedAuthUsers *map[string]string
 }
 
 type State struct {
@@ -36,6 +37,7 @@ type State struct {
 
 func LoadConfig(path string) Config {
 	config := Config{}
+	config.Server.SecureCookies = true
 	_, err := toml.DecodeFile(path, &config)
 	if err != nil {
 		log.Fatal(err)

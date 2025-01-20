@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     volumes:
-      - ./hallertau.toml:/hallertau/hallertau.toml:ro
+      - ./config.toml:/hallertau/config.toml:ro
       - ./recipes:/hallertau/recipes:rw
       - /etc/ssl/certs:/etc/ssl/certs:ro
     ports:

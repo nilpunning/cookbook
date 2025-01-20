@@ -1,0 +1,13 @@
+{{define "body"}}
+<body>
+    <form class="login-form" method="post">
+        {{ .CsrfField }}
+        <input type="text" name="username" placeholder="Username" value="{{.Username}}" required>
+        <input type="password" name="password" placeholder="Password" required>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <button type="submit">Login</button>
+        </div>
+        <div>{{ .Error }}</div>
+    </form>
+</body>
+{{end}}
