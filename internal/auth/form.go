@@ -5,6 +5,7 @@ import (
 	"hallertau/internal/core"
 	"html/template"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -37,8 +38,11 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 			return
 		}
 
+		time.Sleep(time.Duration(1+rand.Intn(3)) * time.Second)
+
 		err := r.ParseForm()
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -62,6 +66,7 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 			}
 			if err := loginTemplate.Execute(w, data); err != nil {
 				slog.Error(err.Error())
+				return
 			}
 		}
 
@@ -74,12 +79,12 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 		password_bytes, err := base64.RawStdEncoding.DecodeString(users[username])
 
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		if string(password_bytes) == password {
-			time.Sleep(3 * time.Second)
 			session, err := GetSession(state.SessionStore, r)
 			if err != nil {
 				if err.Error() == "securecookie: the value is not valid" {
@@ -93,6 +98,7 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 			session.Values["sub"] = username
 			err = session.Save(r, w)
 			if err != nil {
+				slog.Error(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -107,6 +113,7 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 	serveMux.HandleFunc(logoutURL, func(w http.ResponseWriter, r *http.Request) {
 		err := ClearSession(state.SessionStore, r, w)
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

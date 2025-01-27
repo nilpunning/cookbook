@@ -8,6 +8,7 @@ import (
 	"hallertau/internal/core"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -27,6 +28,7 @@ func randString(nByte int) (string, error) {
 func setRandomCookie(w http.ResponseWriter, name string) string {
 	randString, err := randString(16)
 	if err != nil {
+		slog.Error(err.Error())
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return ""
 	}
@@ -69,6 +71,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 
 		err := ClearSession(state.SessionStore, r, w)
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -78,6 +81,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 	serveMux.HandleFunc(mountPoint+"/callback", func(w http.ResponseWriter, r *http.Request) {
 		stateCookie, err := r.Cookie("state")
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, "state not found", http.StatusBadRequest)
 			return
 		}
@@ -87,6 +91,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		}
 		oauth2Token, err := config.Exchange(ctx, r.URL.Query().Get("code"))
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -97,11 +102,13 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		}
 		idToken, err := verifier.Verify(ctx, rawIDToken)
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		nonce, err := r.Cookie("nonce")
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, "nonce not found", http.StatusBadRequest)
 			return
 		}
@@ -119,33 +126,30 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		}
 
 		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		// data, err := json.MarshalIndent(resp, "", "    ")
-		// if err != nil {
-		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-		// 	return
-		// }
-		// log.Println(string(data))
 
 		var claims struct {
 			Sub string `json:"sub"`
 		}
 		if err := json.Unmarshal(*resp.IDTokenClaims, &claims); err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		session, err := GetSession(state.SessionStore, r)
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		session.Values["sub"] = claims.Sub
 		err = session.Save(r, w)
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -157,12 +161,14 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 	serveMux.HandleFunc(logoutURL, func(w http.ResponseWriter, r *http.Request) {
 		err := ClearSession(state.SessionStore, r, w)
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		logoutURL, err := url.Parse(state.Config.OIDC.EndSessionEndpoint)
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -25,6 +26,7 @@ func ExclusiveWriteFile(name string, data []byte, perm os.FileMode) error {
 
 func handleEditRecipe(s core.State, w http.ResponseWriter, r *http.Request, prevFilename string) {
 	if err := r.ParseForm(); err != nil {
+		slog.Error(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -49,6 +51,7 @@ func handleEditRecipe(s core.State, w http.ResponseWriter, r *http.Request, prev
 		if errors.Is(err, fs.ErrExist) {
 			http.Error(w, "A recipe with the name already exists.", http.StatusConflict)
 		} else {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
@@ -57,6 +60,7 @@ func handleEditRecipe(s core.State, w http.ResponseWriter, r *http.Request, prev
 	if prevFilename != "" && prevFilename != filename {
 		prevFp := filepath.Join(s.Config.Server.RecipesPath, prevFilename)
 		if err := os.Remove(prevFp); err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

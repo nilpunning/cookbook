@@ -5,6 +5,7 @@ import (
 	"hallertau/internal/core"
 	"hallertau/internal/search"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -63,6 +64,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		if query != "" {
 			recipes, err := search.SearchRecipes(state.Index, query)
 			if err != nil {
+				slog.Error(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -70,6 +72,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		} else {
 			tags, err := search.GetRecipesGroupedByTag(state.Index)
 			if err != nil {
+				slog.Error(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -92,7 +95,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		w.Header().Set("Vary", "HX-Request")
 
 		if err := indexTemplate.ExecuteTemplate(w, templateName, context); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error(err.Error())
 		}
 	})
 
@@ -107,6 +110,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		_, name, html, err := search.GetRecipe(state.Index, webpath)
 		switch err {
 		case search.ErrNotFound:
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusNotFound)
 		case nil:
 			data := struct {
@@ -123,7 +127,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				Body:        template.HTML(html),
 			}
 			if err := recipeTemplate.Execute(w, data); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				slog.Error(err.Error())
 			}
 		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -158,7 +162,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				CancelUrl:   "/",
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				slog.Error(err.Error())
 			}
 			return
 		}
@@ -181,6 +185,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 			return
 		}
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -189,6 +194,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		if r.Method == "GET" {
 			md, err := os.ReadFile(fp)
 			if err != nil {
+				slog.Error(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -211,7 +217,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				DeleteUrl:   "/recipe/" + webpath + "/delete",
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				slog.Error(err.Error())
 			}
 			return
 		}
@@ -240,6 +246,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				return
 			}
 			if err != nil {
+				slog.Error(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -257,7 +264,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				Webpath:     "/recipe/" + webpath,
 			}
 			if err := deleteRecipeTemplate.Execute(w, data); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				slog.Error(err.Error())
 			}
 			return
 		}
@@ -268,6 +275,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 			return
 		}
 		if err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -275,6 +283,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
 
 		if err := os.Remove(fp); err != nil {
+			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
