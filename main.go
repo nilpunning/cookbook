@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"syscall"
@@ -79,12 +80,12 @@ func main() {
 	}
 
 	if *password_hash {
-		log.Println("Enter password:")
+		fmt.Println("Enter password:")
 		b, err := term.ReadPassword(int(syscall.Stdin))
 		if err != nil {
 			panic(err)
 		}
-		log.Println(base64.RawStdEncoding.EncodeToString(b))
+		fmt.Println(auth.HashPassword(b))
 		return
 	}
 

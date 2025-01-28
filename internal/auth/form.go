@@ -1,16 +1,64 @@
 package auth
 
 import (
-	"encoding/base64"
+	crand "crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"hallertau/internal/core"
 	"html/template"
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/csrf"
+	"golang.org/x/crypto/bcrypt"
 )
+
+func HashPassword(password []byte) string {
+	salt := make([]byte, 16)
+	if _, err := crand.Read(salt); err != nil {
+		panic(err)
+	}
+	hash, err := bcrypt.GenerateFromPassword(append(password, salt...), bcrypt.DefaultCost)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("bcrypt$%x$%x", salt, hash)
+}
+
+func ComparePasswordHash(hashedPassword string, password string) bool {
+	if hashedPassword == "" {
+		return false
+	}
+
+	parts := strings.Split(hashedPassword, "$")
+	if len(parts) != 3 {
+		slog.Error("invalid password hash in config")
+		return false
+	}
+
+	if parts[0] != "bcrypt" {
+		slog.Error("unsupported hash type")
+		return false
+	}
+
+	salt, err := hex.DecodeString(parts[1])
+	if err != nil {
+		slog.Error("problem decoding salt hash", "error", err.Error())
+		return false
+	}
+
+	hash, err := hex.DecodeString(parts[2])
+	if err != nil {
+		slog.Error("problem decoding password hash", "error", err.Error())
+		return false
+	}
+
+	err = bcrypt.CompareHashAndPassword(hash, append([]byte(password), salt...))
+	return err == nil
+}
 
 func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (string, string) {
 	loginTemplate := template.Must(template.ParseFiles(
@@ -76,15 +124,7 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 		}
 
 		users := *state.Config.FormBasedAuthUsers
-		password_bytes, err := base64.RawStdEncoding.DecodeString(users[username])
-
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if string(password_bytes) == password {
+		if ComparePasswordHash(users[username], password) {
 			session, err := GetSession(state.SessionStore, r)
 			if err != nil {
 				if err.Error() == "securecookie: the value is not valid" {
