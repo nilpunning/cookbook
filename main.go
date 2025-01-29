@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -46,13 +46,18 @@ func serve(configPath string) {
 	}
 	handlers.AddHandlers(serveMux, state, loginURL, logoutURL)
 
+	csrfKey, err := hex.DecodeString(state.Config.Server.CSRFKey)
+	if err != nil {
+		log.Fatal("cannot read CSRFKey config")
+	}
+
 	csrfMiddleware := csrf.Protect(
-		[]byte(state.Config.Server.CSRFKey),
+		csrfKey,
 		csrf.Secure(cfg.Server.SecureCookies),
 	)
 
 	log.Println("Server starting on", state.Config.Server.Address)
-	err := http.ListenAndServe(
+	err = http.ListenAndServe(
 		state.Config.Server.Address,
 		csrfMiddleware(serveMux),
 	)
@@ -62,9 +67,6 @@ func serve(configPath string) {
 }
 
 func main() {
-	// Recipes path must be a folder that exists, if it doesn't exist or is deleted after the
-	// program starts, recipe changes will not be monitored.
-
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Parse command-line arguments
@@ -91,7 +93,7 @@ func main() {
 
 	if *key {
 		b := securecookie.GenerateRandomKey(32)
-		log.Println(base64.RawStdEncoding.EncodeToString(b))
+		fmt.Printf("%x\n", b)
 		return
 	}
 

@@ -1,7 +1,8 @@
 package auth
 
 import (
-	"encoding/base64"
+	"encoding/hex"
+	"log"
 	"log/slog"
 	"net/http"
 
@@ -13,9 +14,9 @@ var sessionKey = "session"
 func NewSessionStore(secrets []string, secureCookies bool) *sessions.CookieStore {
 	secret_bytes := [][]byte{}
 	for _, s := range secrets {
-		d, err := base64.RawStdEncoding.DecodeString(s)
+		d, err := hex.DecodeString(s)
 		if err != nil {
-			panic(err)
+			log.Fatal("cannot read SessionSecrets config")
 		}
 		secret_bytes = append(secret_bytes, d)
 	}
