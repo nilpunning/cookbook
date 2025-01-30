@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
+	"cookbook/internal/core"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"hallertau/internal/core"
 	"io"
 	"log"
 	"log/slog"

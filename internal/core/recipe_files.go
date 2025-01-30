@@ -2,8 +2,8 @@ package core
 
 import (
 	"bytes"
-	"hallertau/internal/markdown"
-	"hallertau/internal/search"
+	"cookbook/internal/markdown"
+	"cookbook/internal/search"
 	"html/template"
 	"io/fs"
 	"log"

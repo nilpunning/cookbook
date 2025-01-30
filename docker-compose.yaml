@@ -1,10 +1,10 @@
 services:
-  hallertau:
+  cookbook:
     build: .
     restart: unless-stopped
     volumes:
-      - ./config.toml:/hallertau/config.toml:ro
-      - ./recipes:/hallertau/recipes:rw
+      - ./config.toml:/cookbook/config.toml:ro
+      - ./recipes:/cookbook/recipes:rw
       - /etc/ssl/certs:/etc/ssl/certs:ro
     ports:
       - "127.0.0.1:7004:8080"

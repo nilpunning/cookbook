@@ -1,4 +1,4 @@
-# Hallertau
+# Cookbook
 
 A simple recipe server using Go and SQLite.
 
@@ -18,7 +18,7 @@ caddy run --config Caddyfile
 
 ```sh
 ./build.sh
-./hallertau config.toml
+./cookbook config.toml
 ```
 
 ## Deployment example

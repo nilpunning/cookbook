@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"hallertau/internal/core"
+	"cookbook/internal/core"
 )
 
 func ExclusiveWriteFile(name string, data []byte, perm os.FileMode) error {

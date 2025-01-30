@@ -1,10 +1,10 @@
 package auth
 
 import (
+	"cookbook/internal/core"
 	crand "crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"hallertau/internal/core"
 	"html/template"
 	"log/slog"
 	"math/rand"

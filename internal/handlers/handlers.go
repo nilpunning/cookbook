@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"hallertau/internal/auth"
-	"hallertau/internal/core"
-	"hallertau/internal/search"
+	"cookbook/internal/auth"
+	"cookbook/internal/core"
+	"cookbook/internal/search"
 	"html/template"
 	"log/slog"
 	"net/http"

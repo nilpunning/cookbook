@@ -1,4 +1,4 @@
-module hallertau
+module cookbook
 
 go 1.23.1
 

@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"syscall"
 
-	"hallertau/internal/auth"
-	"hallertau/internal/core"
-	"hallertau/internal/handlers"
-	"hallertau/internal/search"
+	"cookbook/internal/auth"
+	"cookbook/internal/core"
+	"cookbook/internal/handlers"
+	"cookbook/internal/search"
 
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/securecookie"

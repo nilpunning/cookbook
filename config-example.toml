@@ -3,8 +3,8 @@ Address = ":8080"
 RecipesPath = "recipes" # Where recipe markdown files will be saved. RecipesPath path must be a
 # directory that exists, if it doesn't exist or is deleted after the program starts, recipe changes
 # will not be monitored.
-SessionSecrets = [ "generate this key with `./hallertau -k`"]
-CSRFKey = "generate this key with `./hallertau -k`, make sure it is different than SessionSecrets"
+SessionSecrets = [ "generate this key with `./cookbook -k`"]
+CSRFKey = "generate this key with `./cookbook -k`, make sure it is different than SessionSecrets"
 Language = "en" # language to use for fulltext search, see other options here:
 # https://github.com/blevesearch/bleve/tree/b7b67d3938fb525d7face7e02d9d18029910f6af/analysis/lang
 SecureCookies = true # try to keep true (requires https)
@@ -17,4 +17,4 @@ SecureCookies = true # try to keep true (requires https)
 # RedirectURI = "https://127.0.0.1:8081/auth/oidc/callback"
 
 # [FormBasedAuthUsers]
-# "username" = "encrypt your password with `./hallertau -p` and put it here"
+# "username" = "encrypt your password with `./cookbook -p` and put it here"
