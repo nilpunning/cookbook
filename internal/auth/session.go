@@ -30,7 +30,9 @@ func NewSessionStore(secrets []string, secureCookies bool) *sessions.CookieStore
 func ClearSession(store *sessions.CookieStore, r *http.Request, w http.ResponseWriter) error {
 	session, err := store.Get(r, sessionKey)
 	if err != nil {
-		return err
+		if err.Error() != "securecookie: the value is not valid" {
+			return err
+		}
 	}
 	session.Options.MaxAge = -1
 	err = session.Save(r, w)
