@@ -51,3 +51,7 @@ caddy run --config Caddyfile
 ./build.sh
 docker compose up -d --build
 ```
+
+## License
+
+MIT
