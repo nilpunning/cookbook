@@ -6,7 +6,7 @@ tmp_dir = "tmp"
   bin = "./tmp/main -c config.toml"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "recipes"]
-  include_ext = ["go", "tpl", "tmpl", "html"]
+  include_ext = ["go", "tpl", "tmpl", "html", "css"]
   exclude_regex = ["_test\\.go"]
 
 [log]

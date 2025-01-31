@@ -10,8 +10,8 @@ Language = "en" # language to use for fulltext search, see other options here:
 SecureCookies = true # try to keep true (requires https)
 
 # [OIDC]
-# Issuer = "https://auth.example.com/application/o/local-recipes/"
-# EndSessionEndpoint = "https://auth.example.com/application/o/local-recipes/end-session/"
+# Issuer = "https://auth.example.com/application/o/cookbook/"
+# EndSessionEndpoint = "https://auth.example.com/application/o/cookbook/end-session/"
 # ClientID = "get this id from your oicd provider"
 # ClientSecret = "get this id from your oicd provider"
 # RedirectURI = "https://127.0.0.1:8081/auth/oidc/callback"

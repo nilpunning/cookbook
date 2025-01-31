@@ -5,6 +5,7 @@ services:
     volumes:
       - ./config.toml:/cookbook/config.toml:ro
       - ./recipes:/cookbook/recipes:rw
+      # if put behind a proxy server providing https, sharing the cert may be required for oicd
       - /etc/ssl/certs:/etc/ssl/certs:ro
     ports:
       - "127.0.0.1:7004:8080"
