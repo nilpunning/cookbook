@@ -16,8 +16,8 @@ A server to share, search, and edit recipes.
 - Configuration options:
   - No authentication.  Edit the recipe files on your server, the server will recognize changes and be viewable in the browser.  Cannot create or edit from the browser.
   - Authentication.  When configured an `Edit` link will appear where you will be able to edit recipes in the browser.
-    - Form based authentication.  Edit the [config.toml](config.toml#L19-20) `FormBasedAuthUsers` section. 
-    - [OpenID Connect](https://en.wikipedia.org/wiki/OpenID#OpenID_Connect_(OIDC)).  Connect to an OIDC provider such as [Authentik](https://goauthentik.io/).  Configure the [config.toml](config.toml#L12-17) `OIDC` section.
+    - Form based authentication.  Edit the [config.toml](config-example.toml#L19-L20) `FormBasedAuthUsers` section. 
+    - [OpenID Connect](https://en.wikipedia.org/wiki/OpenID#OpenID_Connect_(OIDC)).  Connect to an OIDC provider such as [Authentik](https://goauthentik.io/).  Configure the [config.toml](config-example.toml#L12-L17) `OIDC` section.
 
 ## Requirements
 - [go](https://go.dev/doc/install)
