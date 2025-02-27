@@ -25,6 +25,7 @@ type Config struct {
 		ClientID           string
 		ClientSecret       string
 		RedirectURI        string
+		GroupsClaim        *[]string
 	}
 	FormBasedAuthUsers *map[string]string
 }

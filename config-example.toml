@@ -15,6 +15,7 @@ SecureCookies = true # try to keep true (requires https)
 # ClientID = "get this id from your oicd provider"
 # ClientSecret = "get this id from your oicd provider"
 # RedirectURI = "https://127.0.0.1:8081/auth/oidc/callback"
+# GroupsClaim = ["optionally add required groups, omit line if no groups required", "cookbook-editor"]
 
 # [FormBasedAuthUsers]
 # "username" = "encrypt your password with `./cookbook -p` and put it here"

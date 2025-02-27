@@ -25,6 +25,26 @@ func randString(nByte int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// ContainsAll returns true if all elements in subset exist in superset
+func ContainsAll(superset, subset []string) bool {
+	if len(subset) == 0 {
+		return true
+	}
+	for _, item := range subset {
+		found := false
+		for _, superItem := range superset {
+			if superItem == item {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 func setRandomCookie(w http.ResponseWriter, name string) string {
 	randString, err := randString(16)
 	if err != nil {
@@ -118,10 +138,8 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		}
 
 		resp := struct {
-			// OAuth2Token   *oauth2.Token
 			IDTokenClaims *json.RawMessage
 		}{
-			// oauth2Token,
 			new(json.RawMessage),
 		}
 
@@ -132,11 +150,17 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		}
 
 		var claims struct {
-			Sub string `json:"sub"`
+			Sub    string   `json:"sub"`
+			Groups []string `json:"groups"`
 		}
 		if err := json.Unmarshal(*resp.IDTokenClaims, &claims); err != nil {
 			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if state.Config.OIDC.GroupsClaim != nil && !ContainsAll(claims.Groups, *state.Config.OIDC.GroupsClaim) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
