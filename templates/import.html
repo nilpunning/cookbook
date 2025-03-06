@@ -1,0 +1,13 @@
+{{define "body"}}
+<div hx-ext="response-targets">
+    <div id="error" class="no-print" style="margin-bottom: 1em;"></div>
+    <form class="recipe-form" hx-post="" hx-target-4xx="#error">
+        {{ .CsrfField }}
+        <input type="url" name="url" placeholder="Recipe URL" required>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <button type="submit">Import</button>
+            <a href="{{.CancelUrl}}" style="margin-right: auto;">Cancel</a>
+        </div>
+    </form>
+</div>
+{{end}}

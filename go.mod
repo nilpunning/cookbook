@@ -4,19 +4,25 @@ go 1.23.1
 
 require (
 	github.com/BurntSushi/toml v1.4.0
+	github.com/PuerkitoBio/goquery v1.10.2
 	github.com/blevesearch/bleve/v2 v2.4.4
 	github.com/blevesearch/bleve_index_api v1.1.12
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gorilla/csrf v1.7.2
+	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.4.0
 	github.com/yuin/goldmark v1.7.8
+	golang.org/x/crypto v0.35.0
+	golang.org/x/net v0.36.0
 	golang.org/x/oauth2 v0.21.0
-	golang.org/x/text v0.21.0
+	golang.org/x/term v0.29.0
+	golang.org/x/text v0.22.0
 )
 
 require (
 	github.com/RoaringBitmap/roaring v1.9.3 // indirect
+	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/blevesearch/geo v0.1.20 // indirect
 	github.com/blevesearch/go-faiss v1.0.24 // indirect
@@ -38,11 +44,8 @@ require (
 	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
 	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/json-iterator/go v0.0.0-20171115153421-f7279a603ede // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	go.etcd.io/bbolt v1.3.7 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/term v0.28.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )

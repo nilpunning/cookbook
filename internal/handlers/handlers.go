@@ -170,6 +170,41 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		handleEditRecipe(state, w, r, "")
 	})
 
+	importTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/import.html",
+	))
+
+	serveMux.HandleFunc("/import", func(w http.ResponseWriter, r *http.Request) {
+		bc := makeBaseContext(r)
+		if !bc.IsAuthenticated {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if r.Method == "GET" {
+			data := struct {
+				baseContext
+				CsrfField template.HTML
+				Title     string
+				CancelUrl string
+			}{
+				baseContext: bc,
+				CsrfField:   csrf.TemplateField(r),
+				Title:       "Import Recipe",
+				CancelUrl:   "/",
+			}
+			if err := importTemplate.Execute(w, data); err != nil {
+				slog.Error(err.Error())
+			}
+			return
+		}
+
+		// Handle POST request here
+		// TODO: Implement recipe import logic
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+
 	serveMux.HandleFunc("/recipe/{path}/edit", func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
 		if !bc.IsAuthenticated {

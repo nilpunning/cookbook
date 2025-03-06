@@ -23,7 +23,8 @@
             <a href="/">Cookbook</a>
             {{if .ShowAuth}}
                 {{if .IsAuthenticated}}
-                    <a href="/recipe" style="margin-right: auto;">Add</a>
+                    <a href="/recipe">Add</a>
+                    <a href="/import" style="margin-right: auto;">Import</a>
                     <a href="{{.LogoutUrl}}" style="margin-left: auto;">Logout</a>
                 {{else}}
                     <a href="{{.LoginUrl}}" style="margin-left: auto;">Login</a>
