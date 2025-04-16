@@ -18,6 +18,11 @@ type Config struct {
 		CSRFKey        string
 		Language       string
 		SecureCookies  bool
+		LLM            *string
+	}
+	Google *struct {
+		APIKey *string
+		Model  *string
 	}
 	OIDC *struct {
 		Issuer             string

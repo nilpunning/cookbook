@@ -71,7 +71,7 @@ func main() {
 
 	// Parse command-line arguments
 	configPath := flag.String("c", "", "Start server with config toml file. Ex. -c config.toml")
-	password_hash := flag.Bool("p", false, "Hash password for form based authentication.")
+	passwordHash := flag.Bool("p", false, "Hash password for form based authentication.")
 	help := flag.Bool("h", false, "Print help.")
 	key := flag.Bool("k", false, "Generates a new key which can be used for secrets in config.")
 	flag.Parse()
@@ -81,7 +81,7 @@ func main() {
 		return
 	}
 
-	if *password_hash {
+	if *passwordHash {
 		fmt.Println("Enter password:")
 		b, err := term.ReadPassword(int(syscall.Stdin))
 		if err != nil {

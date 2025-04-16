@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -15,6 +16,7 @@ import (
 
 type baseContext struct {
 	ShowAuth        bool
+	ShowImport      bool
 	IsAuthenticated bool
 	LoginUrl        string
 	LogoutUrl       string
@@ -30,6 +32,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 	makeBaseContext := func(r *http.Request) baseContext {
 		return baseContext{
 			ShowAuth:        loginURL != "" && logoutURL != "",
+			ShowImport:      state.Config.Server.LLM != nil,
 			IsAuthenticated: auth.IsAuthenticated(state.SessionStore, r),
 			LoginUrl:        loginURL,
 			LogoutUrl:       logoutURL,
@@ -147,6 +150,31 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		}
 
 		if r.Method == "GET" {
+			name := ""
+			body := ""
+			if state.Config.Server.LLM != nil {
+				importURL := r.URL.Query().Get("import")
+
+				if importURL != "" {
+					llm, err := core.LLMModel(r.Context(), state.Config)
+					if err != nil {
+						slog.Error(err.Error())
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
+
+					recipe, err := core.Import(r.Context(), llm, core.HTTPRequest, importURL)
+					if err != nil {
+						slog.Error(err.Error())
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					if recipe != nil {
+						name = recipe.Name
+						body = recipe.Body
+					}
+				}
+			}
+
 			data := struct {
 				baseContext
 				CsrfField template.HTML
@@ -159,6 +187,8 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 				baseContext: bc,
 				CsrfField:   csrf.TemplateField(r),
 				Title:       "Add Recipe",
+				Name:        name,
+				Body:        body,
 				CancelUrl:   "/",
 			}
 			if err := recipeFormTemplate.Execute(w, data); err != nil {
@@ -175,35 +205,44 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		"templates/import.html",
 	))
 
-	serveMux.HandleFunc("/import", func(w http.ResponseWriter, r *http.Request) {
-		bc := makeBaseContext(r)
-		if !bc.IsAuthenticated {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		if r.Method == "GET" {
-			data := struct {
-				baseContext
-				CsrfField template.HTML
-				Title     string
-				CancelUrl string
-			}{
-				baseContext: bc,
-				CsrfField:   csrf.TemplateField(r),
-				Title:       "Import Recipe",
-				CancelUrl:   "/",
+	if state.Config.Server.LLM != nil {
+		serveMux.HandleFunc("/import", func(w http.ResponseWriter, r *http.Request) {
+			bc := makeBaseContext(r)
+			if !bc.IsAuthenticated {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
 			}
-			if err := importTemplate.Execute(w, data); err != nil {
+
+			if r.Method == "GET" {
+				data := struct {
+					baseContext
+					CsrfField template.HTML
+					Title     string
+					CancelUrl string
+				}{
+					baseContext: bc,
+					CsrfField:   csrf.TemplateField(r),
+					Title:       "Import Recipe",
+					CancelUrl:   "/",
+				}
+				if err := importTemplate.Execute(w, data); err != nil {
+					slog.Error(err.Error())
+				}
+				return
+			}
+
+			if err := r.ParseForm(); err != nil {
 				slog.Error(err.Error())
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
 			}
-			return
-		}
 
-		// Handle POST request here
-		// TODO: Implement recipe import logic
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
+			u := r.FormValue("url")
+			escapedURL := url.QueryEscape(u)
+			w.Header().Set("HX-Redirect", "/recipe?import="+escapedURL)
+			w.WriteHeader(http.StatusOK)
+		})
+	}
 
 	serveMux.HandleFunc("/recipe/{path}/edit", func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)

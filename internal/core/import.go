@@ -2,70 +2,104 @@ package core
 
 import (
 	"fmt"
-	"os"
+	"io"
+	"net/http"
 	"strings"
 
+	"encoding/json"
+
 	"github.com/PuerkitoBio/goquery"
+
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/googleai"
+
+	"golang.org/x/exp/slog"
+	"golang.org/x/net/context"
 	"golang.org/x/net/html"
 )
 
-func ExtractTextFromHTMLFile(filename string) error {
-	fmt.Println(filename)
-
-	// Open the file
-	file, err := os.Open(filename)
-	if err != nil {
-		return fmt.Errorf("error opening file: %v", err)
-	}
-	defer file.Close()
-
-	// Parse the HTML
-	doc, err := html.Parse(file)
-	if err != nil {
-		return fmt.Errorf("error parsing HTML: %v", err)
-	}
-
-	// Extract and print text
-	var extract func(*html.Node, bool)
-	extract = func(n *html.Node, inBaddie bool) {
-		if n.Type == html.TextNode {
-			if !inBaddie {
-				text := strings.TrimSpace(n.Data)
-				if text != "" {
-					fmt.Println("===>", text)
-				}
-			}
-		} else if n.Data == "noscript" {
-			// https://github.com/golang/go/issues/16318
-			fmt.Println(n.Type, n.Data)
-			if n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
-				doc, err := html.Parse(strings.NewReader(n.FirstChild.Data))
-				if err == nil {
-					extract(doc, false)
-				}
-			}
-		} else {
-			fmt.Println(n.Type, n.Data)
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			extract(c, inBaddie || n.Data == "script" || n.Data == "style")
-		}
-	}
-
-	extract(doc, false)
-	return nil
+type Recipe struct {
+	Name string `json:"name"`
+	Body string `json:"body"`
 }
 
-func StripExtraneousHTML(filename string) error {
-	file, err := os.Open(filename)
-	if err != nil {
-		return fmt.Errorf("error opening file: %v", err)
-	}
-	defer file.Close()
+const CRAWLED_PARSE_PROMPT = `
+  Consider this recipe URL: %s.
+  The output should be JSON formatted with the following schema:
+  {
+    "type": "object",
+    "nullable": true,
+    "description": "A recipe.  The object should be null if you have never crawled the provided URL.",
+    "properties": {
+    	"name": {
+    		"type": "string",
+    		"description": "The name of the recipe"
+    	},
+    	"body": {
+    		"type": "string",
+    		"description": "The recipe ingredients and directions in markdown format.  Do not include the recipe name in the body."
+    	}
+    },
+    "required": ["name", "body"]
+  }
+`
 
-	doc, err := goquery.NewDocumentFromReader(file)
+const FETCHED_PARSE_PROMPT = `
+  Consider this recipe:
+  <html>
+  	%s
+  </html>
+  The output should be JSON formatted with the following schema:
+  {
+    "type": "object",
+    "nullable": true,
+    "description": "A recipe.  The object should be null if you have not found a recipe.",
+    "properties": {
+    	"name": {
+    		"type": "string",
+    		"description": "The name of the recipe"
+    	},
+    	"body": {
+    		"type": "string",
+    		"description": "The recipe ingredients and directions in markdown format.  Do not include the recipe name in the body."
+    	}
+    },
+    "required": ["name", "body"]
+  }
+`
+
+func TrimCompletion(completion string) string {
+	completion = strings.TrimPrefix(completion, "```json")
+	completion = strings.TrimSuffix(completion, "```")
+	return strings.TrimSpace(completion)
+}
+
+func QueryLLM(ctx context.Context, llm llms.Model, prompt string) (*Recipe, error) {
+	completion, err := llms.GenerateFromSinglePrompt(ctx, llm, prompt)
 	if err != nil {
-		return fmt.Errorf("error parsing HTML: %v", err)
+		return nil, fmt.Errorf("error generating content: %v", err)
+	}
+
+	slog.Info("LLM", "request", prompt, "response", completion)
+
+	completion = TrimCompletion(completion)
+
+	if completion == "null" {
+		return nil, nil
+	}
+
+	var recipe Recipe
+	if err := json.Unmarshal([]byte(completion), &recipe); err != nil {
+		return nil, fmt.Errorf("error parsing response: %v", err)
+	}
+
+	return &recipe, nil
+}
+
+func StripExtraneousHTML(reader io.Reader) (string, error) {
+	doc, err := goquery.NewDocumentFromReader(reader)
+	if err != nil {
+		return "", err
 	}
 
 	// https://github.com/PuerkitoBio/goquery/issues/139
@@ -89,11 +123,94 @@ func StripExtraneousHTML(filename string) error {
 	doc.Find("*").Each(clean)
 	doc.Find("*").Contents().Each(clean)
 
-	html, err := doc.Html()
-	if err != nil {
-		return fmt.Errorf("error getting HTML: %v", err)
-	}
-	fmt.Println(html)
+	return doc.Html()
+}
 
-	return nil
+type LLMNotFoundError struct{ LLM string }
+
+func (u *LLMNotFoundError) Error() string {
+	return fmt.Sprintf("llm not found: %s", u.LLM)
+}
+
+func LLMModel(ctx context.Context, config Config) (llms.Model, error) {
+	if config.Server.LLM == nil {
+		return nil, &LLMNotFoundError{LLM: "unknown"}
+	}
+	if *config.Server.LLM == "Google" {
+		options := []googleai.Option{}
+
+		if config.Google.APIKey != nil {
+			options = append(options, googleai.WithAPIKey(*config.Google.APIKey))
+		}
+
+		if config.Google.Model != nil {
+			options = append(options, googleai.WithDefaultModel(*config.Google.Model))
+		}
+
+		return googleai.New(ctx, options...)
+	}
+	return nil, &LLMNotFoundError{LLM: *config.Server.LLM}
+}
+
+type Request func(ctx context.Context, url string) (io.ReadCloser, error)
+
+func HTTPRequest(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	return resp.Body, err
+}
+
+func Import(ctx context.Context, llm llms.Model, request Request, url string) (*Recipe, error) {
+	crawledChan := make(chan struct {
+		*Recipe
+		error
+	}, 1)
+
+	go func() {
+		result, err := QueryLLM(ctx, llm, fmt.Sprintf(CRAWLED_PARSE_PROMPT, url))
+		crawledChan <- struct {
+			*Recipe
+			error
+		}{result, err}
+	}()
+
+	requestChan := make(chan struct {
+		string
+		error
+	}, 1)
+
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel() // cancels GET if LLM result is positive
+
+	go func() {
+		str := ""
+		readCloser, err := request(requestCtx, url)
+		if err == nil {
+			defer readCloser.Close()
+			str, err = StripExtraneousHTML(readCloser)
+		}
+		slog.Info("request", "url", url, "str", str, "error", err)
+		requestChan <- struct {
+			string
+			error
+		}{str, err}
+	}()
+
+	crawlResult := <-crawledChan
+	if crawlResult.error != nil {
+		return nil, crawlResult.error
+	}
+	if crawlResult.Recipe != nil {
+		return crawlResult.Recipe, nil
+	}
+
+	requestResult := <-requestChan
+	if requestResult.error != nil {
+		return nil, requestResult.error
+	}
+
+	return QueryLLM(ctx, llm, fmt.Sprintf(FETCHED_PARSE_PROMPT, requestResult.string))
 }

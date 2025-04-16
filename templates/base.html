@@ -24,7 +24,9 @@
             {{if .ShowAuth}}
                 {{if .IsAuthenticated}}
                     <a href="/recipe">Add</a>
-                    <a href="/import" style="margin-right: auto;">Import</a>
+                    {{if .ShowImport}}
+                        <a href="/import" style="margin-right: auto;">Import</a>
+                    {{end}}
                     <a href="{{.LogoutUrl}}" style="margin-left: auto;">Logout</a>
                 {{else}}
                     <a href="{{.LoginUrl}}" style="margin-left: auto;">Login</a>

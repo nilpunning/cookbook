@@ -1,7 +1,7 @@
 {{define "body"}}
 <div hx-ext="response-targets">
     <div id="error" class="no-print" style="margin-bottom: 1em;"></div>
-    <form class="recipe-form" hx-post="" hx-target-4xx="#error">
+    <form class="recipe-form" hx-post="" hx-target-4xx="#error" hx-target-5xx="#error">
         {{ .CsrfField }}
         <input type="text" name="name" placeholder="Recipe Name" value="{{.Name}}" required>
         <textarea name="body" rows="20" placeholder="Recipe Content..." required>{{.Body}}</textarea>
