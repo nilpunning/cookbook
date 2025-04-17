@@ -22,35 +22,21 @@ type baseContext struct {
 	LogoutUrl       string
 }
 
+type makeBaseContext func(r *http.Request) baseContext
+
 func htmx(r *http.Request) (bool, string) {
 	isHtmx := r.Header.Get("Hx-Request") == "true"
 	htmxTarget := r.Header.Get("Hx-Target")
 	return isHtmx, htmxTarget
 }
 
-func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, logoutURL string) {
-
-	serveMux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(core.Version))
-	})
-
-	makeBaseContext := func(r *http.Request) baseContext {
-		return baseContext{
-			ShowAuth:        loginURL != "" && logoutURL != "",
-			ShowImport:      state.Config.Server.LLM != nil,
-			IsAuthenticated: auth.IsAuthenticated(state.SessionStore, r),
-			LoginUrl:        loginURL,
-			LogoutUrl:       logoutURL,
-		}
-	}
-
+func makeHandleIndex(state core.State, makeBaseContext makeBaseContext) http.HandlerFunc {
 	indexTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/index.html",
 	))
 
-	serveMux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("q")
 
 		if query == "" && r.URL.RawQuery != "" || r.URL.Query().Has("clear") {
@@ -105,14 +91,16 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		if err := indexTemplate.ExecuteTemplate(w, templateName, context); err != nil {
 			slog.Error(err.Error())
 		}
-	})
+	}
+}
 
+func makeHandleRecipePath(state core.State, makeBaseContext makeBaseContext) http.HandlerFunc {
 	recipeTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/recipe.html",
 	))
 
-	serveMux.HandleFunc("/recipe/{path}", func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		webpath := r.PathValue("path")
 
 		_, name, html, err := search.GetRecipe(state.Index, webpath)
@@ -140,14 +128,11 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	})
+	}
+}
 
-	recipeFormTemplate := template.Must(template.ParseFiles(
-		"templates/base.html",
-		"templates/recipeForm.html",
-	))
-
-	serveMux.HandleFunc("/recipe", func(w http.ResponseWriter, r *http.Request) {
+func makeHandleRecipe(state core.State, makeBaseContext makeBaseContext, recipeFormTemplate *template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
 		if !bc.IsAuthenticated {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -203,53 +188,11 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		}
 
 		handleEditRecipe(state, w, r, "")
-	})
-
-	importTemplate := template.Must(template.ParseFiles(
-		"templates/base.html",
-		"templates/import.html",
-	))
-
-	if state.Config.Server.LLM != nil {
-		serveMux.HandleFunc("/import", func(w http.ResponseWriter, r *http.Request) {
-			bc := makeBaseContext(r)
-			if !bc.IsAuthenticated {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-
-			if r.Method == "GET" {
-				data := struct {
-					baseContext
-					CsrfField template.HTML
-					Title     string
-					CancelUrl string
-				}{
-					baseContext: bc,
-					CsrfField:   csrf.TemplateField(r),
-					Title:       "Import Recipe",
-					CancelUrl:   "/",
-				}
-				if err := importTemplate.Execute(w, data); err != nil {
-					slog.Error(err.Error())
-				}
-				return
-			}
-
-			if err := r.ParseForm(); err != nil {
-				slog.Error(err.Error())
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			u := r.FormValue("url")
-			escapedURL := url.QueryEscape(u)
-			w.Header().Set("HX-Redirect", "/recipe?import="+escapedURL)
-			w.WriteHeader(http.StatusOK)
-		})
 	}
+}
 
-	serveMux.HandleFunc("/recipe/{path}/edit", func(w http.ResponseWriter, r *http.Request) {
+func makeHandleRecipePathEdit(state core.State, makeBaseContext makeBaseContext, recipeFormTemplate *template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
 		if !bc.IsAuthenticated {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -302,14 +245,60 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		}
 
 		handleEditRecipe(state, w, r, filename)
-	})
+	}
+}
 
+func makeHandleImport(makeBaseContext makeBaseContext) http.HandlerFunc {
+	importTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/import.html",
+	))
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		bc := makeBaseContext(r)
+		if !bc.IsAuthenticated {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if r.Method == "GET" {
+			data := struct {
+				baseContext
+				CsrfField template.HTML
+				Title     string
+				CancelUrl string
+			}{
+				baseContext: bc,
+				CsrfField:   csrf.TemplateField(r),
+				Title:       "Import Recipe",
+				CancelUrl:   "/",
+			}
+			if err := importTemplate.Execute(w, data); err != nil {
+				slog.Error(err.Error())
+			}
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			slog.Error(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		u := r.FormValue("url")
+		escapedURL := url.QueryEscape(u)
+		w.Header().Set("HX-Redirect", "/recipe?import="+escapedURL)
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func makeHandleRecipePathDelete(state core.State, makeBaseContext makeBaseContext) http.HandlerFunc {
 	deleteRecipeTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/deleteRecipe.html",
 	))
 
-	serveMux.HandleFunc("/recipe/{path}/delete", func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		bc := makeBaseContext(r)
 		if !bc.IsAuthenticated {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -368,5 +357,38 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 		}
 
 		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+}
+
+func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, logoutURL string) {
+	serveMux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(core.Version))
 	})
+
+	makeBaseContext := func(r *http.Request) baseContext {
+		return baseContext{
+			ShowAuth:        loginURL != "" && logoutURL != "",
+			ShowImport:      state.Config.Server.LLM != nil,
+			IsAuthenticated: auth.IsAuthenticated(state.SessionStore, r),
+			LoginUrl:        loginURL,
+			LogoutUrl:       logoutURL,
+		}
+	}
+
+	serveMux.HandleFunc("/{$}", makeHandleIndex(state, makeBaseContext))
+	serveMux.HandleFunc("/recipe/{path}", makeHandleRecipePath(state, makeBaseContext))
+
+	recipeFormTemplate := template.Must(template.ParseFiles(
+		"templates/base.html",
+		"templates/recipeForm.html",
+	))
+	serveMux.HandleFunc("/recipe", makeHandleRecipe(state, makeBaseContext, recipeFormTemplate))
+	serveMux.HandleFunc("/recipe/{path}/edit", makeHandleRecipePathEdit(state, makeBaseContext, recipeFormTemplate))
+
+	if state.Config.Server.LLM != nil {
+		serveMux.HandleFunc("/import", makeHandleImport(makeBaseContext))
+	}
+
+	serveMux.HandleFunc("/recipe/{path}/delete", makeHandleRecipePathDelete(state, makeBaseContext))
 }
