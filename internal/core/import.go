@@ -13,6 +13,9 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/googleai"
 
+	"github.com/tmc/langchaingo/llms/ollama"
+	"github.com/tmc/langchaingo/llms/openai"
+
 	"golang.org/x/exp/slog"
 	"golang.org/x/net/context"
 	"golang.org/x/net/html"
@@ -136,7 +139,11 @@ func LLMModel(ctx context.Context, config Config) (llms.Model, error) {
 	if config.Server.LLM == nil {
 		return nil, &LLMNotFoundError{LLM: "unknown"}
 	}
-	if *config.Server.LLM == "Google" {
+
+	switch *config.Server.LLM {
+
+	// https://github.com/tmc/langchaingo/blob/main/llms/googleai/option.go
+	case "Google":
 		options := []googleai.Option{}
 
 		if config.Google.APIKey != nil {
@@ -148,7 +155,40 @@ func LLMModel(ctx context.Context, config Config) (llms.Model, error) {
 		}
 
 		return googleai.New(ctx, options...)
+
+	// https://github.com/tmc/langchaingo/blob/main/llms/ollama/options.go
+	case "Ollama":
+		options := []ollama.Option{}
+
+		if config.Ollama.ServerURL != nil {
+			options = append(options, ollama.WithServerURL(*config.Ollama.ServerURL))
+		}
+
+		if config.Ollama.Model != nil {
+			options = append(options, ollama.WithModel(*config.Ollama.Model))
+		}
+
+		return ollama.New(options...)
+
+	// https://github.com/tmc/langchaingo/blob/main/llms/openai/openaillm_option.go
+	case "OpenAI":
+		options := []openai.Option{}
+
+		if config.OpenAI.Token != nil {
+			options = append(options, openai.WithToken(*config.OpenAI.Token))
+		}
+
+		if config.OpenAI.BaseURL != nil {
+			options = append(options, openai.WithBaseURL(*config.OpenAI.BaseURL))
+		}
+
+		if config.OpenAI.Model != nil {
+			options = append(options, openai.WithModel(*config.OpenAI.Model))
+		}
+
+		return openai.New(options...)
 	}
+
 	return nil, &LLMNotFoundError{LLM: *config.Server.LLM}
 }
 

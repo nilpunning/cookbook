@@ -24,6 +24,15 @@ type Config struct {
 		APIKey *string
 		Model  *string
 	}
+	Ollama *struct {
+		ServerURL *string
+		Model     *string
+	}
+	OpenAI *struct {
+		Token   *string
+		BaseURL *string
+		Model   *string
+	}
 	OIDC *struct {
 		Issuer             string
 		EndSessionEndpoint string
