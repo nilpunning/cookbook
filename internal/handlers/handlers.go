@@ -22,6 +22,12 @@ type baseContext struct {
 	LogoutUrl       string
 }
 
+func htmx(r *http.Request) (bool, string) {
+	isHtmx := r.Header.Get("Hx-Request") == "true"
+	htmxTarget := r.Header.Get("Hx-Target")
+	return isHtmx, htmxTarget
+}
+
 func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, logoutURL string) {
 
 	serveMux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +53,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 	serveMux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("q")
 
-		if query == "" && r.URL.RawQuery != "" {
+		if query == "" && r.URL.RawQuery != "" || r.URL.Query().Has("clear") {
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
@@ -82,8 +88,7 @@ func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, log
 			context.Tags = tags
 		}
 
-		isHtmx := r.Header.Get("Hx-Request") == "true"
-		htmxTarget := r.Header.Get("Hx-Target")
+		isHtmx, htmxTarget := htmx(r)
 
 		templateName := "base.html"
 		if isHtmx {
