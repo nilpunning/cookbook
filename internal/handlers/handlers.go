@@ -126,33 +126,27 @@ func makeHandleRecipePath(state core.State, makeBaseData makeBaseData) http.Hand
 }
 
 func handleRecipe(r *http.Request, state core.State, makeBaseData makeBaseData) recipeTemplateData {
-	data := makeBaseData(r)
+	data := recipeTemplateData{baseData: makeBaseData(r)}
+
 	if !data.IsAuthenticated {
-		return recipeTemplateDataError(data, http.StatusUnauthorized, "Unauthorized", "")
+		data.response = errorResponse(http.StatusUnauthorized, "")
+		return data
 	}
 
-	var resp recipeResponse
 	switch r.Method {
 	case "GET":
-		resp = handleRecipeGet(state, r)
+		data.recipeResponse = handleRecipeGet(state, r)
 	case "POST":
-		resp = handleRecipePost(state, r, "")
+		data.recipeResponse = handleRecipePost(state, r, "")
 	default:
-		resp = recipeResponse{
-			response: response{
-				Error:      "Method Not Allowed",
-				StatusCode: http.StatusMethodNotAllowed,
-			},
-		}
+		data.response = errorResponse(http.StatusMethodNotAllowed, r.Method)
 	}
 
-	return recipeTemplateData{
-		baseData:       data,
-		recipeResponse: resp,
-		CsrfField:      csrf.TemplateField(r),
-		Title:          "Add Recipe",
-		CancelUrl:      "/",
-	}
+	data.Title = "Add Recipe"
+	data.CsrfField = csrf.TemplateField(r)
+	data.CancelUrl = "/"
+
+	return data
 }
 
 func makeHandleRecipe(state core.State, makeBaseData makeBaseData, recipeFormTemplate *template.Template) http.HandlerFunc {
@@ -162,60 +156,53 @@ func makeHandleRecipe(state core.State, makeBaseData makeBaseData, recipeFormTem
 }
 
 func handleRecipePathEdit(r *http.Request, state core.State, makeBaseData makeBaseData) recipeTemplateData {
-	data := makeBaseData(r)
+	data := recipeTemplateData{baseData: makeBaseData(r)}
+
 	if !data.IsAuthenticated {
-		return recipeTemplateDataError(data, http.StatusUnauthorized, "Unauthorized", "")
+		data.response = errorResponse(http.StatusUnauthorized, "")
+		return data
 	}
 
 	webpath := r.PathValue("path")
 	filename, name, _, err := search.GetRecipe(state.Index, webpath)
 
 	if err == search.ErrNotFound {
-		return recipeTemplateDataError(data, http.StatusNotFound, "Not Found", "")
+		data.response = errorResponse(http.StatusNotFound, webpath)
+		return data
 	}
 	if err != nil {
 		slog.Error(err.Error())
-		return recipeTemplateDataError(data, http.StatusInternalServerError, "Unexpected Error", err.Error())
+		data.response = errorResponse(http.StatusInternalServerError, err.Error())
+		return data
 	}
 
-	var resp recipeResponse
 	switch r.Method {
 	case "GET":
 		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
 		md, err := os.ReadFile(fp)
 		if err != nil {
 			slog.Error(err.Error())
-			resp = recipeResponse{
-				response: response{
-					Error:      "Unexpected Error: " + err.Error(),
-					StatusCode: http.StatusInternalServerError,
-				},
-			}
+			data.response = errorResponse(http.StatusInternalServerError, err.Error())
+			return data
 		} else {
-			resp = recipeResponse{
+			data.recipeResponse = recipeResponse{
 				Name: name,
 				Body: string(md),
 			}
 		}
 	case "POST":
-		resp = handleRecipePost(state, r, filename)
+		data.recipeResponse = handleRecipePost(state, r, filename)
 	default:
-		resp = recipeResponse{
-			response: response{
-				Error:      "Method Not Allowed",
-				StatusCode: http.StatusMethodNotAllowed,
-			},
-		}
+		data.response = errorResponse(http.StatusMethodNotAllowed, r.Method)
+		return data
 	}
 
-	return recipeTemplateData{
-		baseData:       data,
-		recipeResponse: resp,
-		CsrfField:      csrf.TemplateField(r),
-		Title:          "Edit " + name,
-		CancelUrl:      "/recipe/" + webpath,
-		DeleteUrl:      "/recipe/" + webpath + "/delete",
-	}
+	data.Title = "Edit " + name
+	data.CsrfField = csrf.TemplateField(r)
+	data.CancelUrl = "/recipe/" + webpath
+	data.DeleteUrl = "/recipe/" + webpath + "/delete"
+
+	return data
 }
 
 func makeHandleRecipePathEdit(state core.State, makeBaseData makeBaseData, recipeFormTemplate *template.Template) http.HandlerFunc {
@@ -225,37 +212,33 @@ func makeHandleRecipePathEdit(state core.State, makeBaseData makeBaseData, recip
 }
 
 func handleImport(r *http.Request, makeBaseData makeBaseData) importTemplateData {
-	data := makeBaseData(r)
+	data := importTemplateData{baseData: makeBaseData(r)}
+
 	if !data.IsAuthenticated {
-		return importTemplateDataError(data, http.StatusUnauthorized, "Unauthorized", "")
+		data.response = errorResponse(http.StatusUnauthorized, "")
+		return data
 	}
 
 	switch r.Method {
 	case "GET":
-		return importTemplateData{
-			baseData:  data,
-			CsrfField: csrf.TemplateField(r),
-			Title:     "Import Recipe",
-			CancelUrl: "/",
-		}
+		data.response = response{Title: "Import Recipe"}
+		data.CsrfField = csrf.TemplateField(r)
+		data.CancelUrl = "/"
 	case "POST":
 		if err := r.ParseForm(); err != nil {
 			slog.Error(err.Error())
-			return importTemplateDataError(data, http.StatusBadRequest, "Bad Request", err.Error())
+			data.response = errorResponse(http.StatusInternalServerError, err.Error())
+			return data
 		}
 
 		u := r.FormValue("url")
 		escapedURL := url.QueryEscape(u)
 
-		return importTemplateData{
-			baseData: data,
-			response: response{
-				RedirectPath: "/recipe?import=" + escapedURL,
-			},
-		}
+		data.response.RedirectPath = "/import?url=" + escapedURL
 	default:
-		return importTemplateDataError(data, http.StatusMethodNotAllowed, "Method Not Allowed", "")
+		data.response = errorResponse(http.StatusMethodNotAllowed, r.Method)
 	}
+	return data
 }
 
 func makeHandleImport(makeBaseData makeBaseData) http.HandlerFunc {
@@ -269,6 +252,59 @@ func makeHandleImport(makeBaseData makeBaseData) http.HandlerFunc {
 	}
 }
 
+func handleRecipePathDelete(r *http.Request, state core.State, makeBaseData makeBaseData) recipePathDeleteTemplateData {
+	data := recipePathDeleteTemplateData{baseData: makeBaseData(r)}
+
+	if !data.IsAuthenticated {
+		data.response = errorResponse(http.StatusUnauthorized, "")
+		return data
+	}
+
+	webpath := r.PathValue("path")
+
+	switch r.Method {
+	case "GET":
+		_, name, _, err := search.GetRecipe(state.Index, webpath)
+		if err == search.ErrNotFound {
+			data.response = errorResponse(http.StatusNotFound, webpath)
+			return data
+		}
+		if err != nil {
+			slog.Error(err.Error())
+			data.response = errorResponse(http.StatusInternalServerError, err.Error())
+			return data
+		}
+		data.response = response{Title: "Delete " + name + "?"}
+		data.CsrfField = csrf.TemplateField(r)
+		data.Name = name
+		data.Webpath = "/recipe/" + webpath
+	case "POST":
+		filename, _, _, err := search.GetRecipe(state.Index, webpath)
+		if err == search.ErrNotFound {
+			data.response = errorResponse(http.StatusNotFound, webpath)
+			return data
+		}
+		if err != nil {
+			slog.Error(err.Error())
+			data.response = errorResponse(http.StatusInternalServerError, err.Error())
+			return data
+		}
+
+		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
+
+		if err := os.Remove(fp); err != nil {
+			slog.Error(err.Error())
+			data.response = errorResponse(http.StatusInternalServerError, err.Error())
+		}
+
+		data.RedirectPath = "/"
+	default:
+		data.response = errorResponse(http.StatusMethodNotAllowed, r.Method)
+	}
+
+	return data
+}
+
 func makeHandleRecipePathDelete(state core.State, makeBaseData makeBaseData) http.HandlerFunc {
 	deleteRecipeTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
@@ -276,64 +312,7 @@ func makeHandleRecipePathDelete(state core.State, makeBaseData makeBaseData) htt
 	))
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		data := makeBaseData(r)
-		if !data.IsAuthenticated {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		webpath := r.PathValue("path")
-
-		if r.Method == "GET" {
-			_, name, _, err := search.GetRecipe(state.Index, webpath)
-			if err == search.ErrNotFound {
-				http.Error(w, err.Error(), http.StatusNotFound)
-				return
-			}
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			data := struct {
-				baseData
-				CsrfField template.HTML
-				Title     string
-				Name      string
-				Webpath   string
-			}{
-				baseData:  data,
-				CsrfField: csrf.TemplateField(r),
-				Title:     "Delete " + name + "?",
-				Name:      name,
-				Webpath:   "/recipe/" + webpath,
-			}
-			if err := deleteRecipeTemplate.Execute(w, data); err != nil {
-				slog.Error(err.Error())
-			}
-			return
-		}
-
-		filename, _, _, err := search.GetRecipe(state.Index, webpath)
-		if err == search.ErrNotFound {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
-
-		if err := os.Remove(fp); err != nil {
-			slog.Error(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		writeResponse(w, r, deleteRecipeTemplate, handleRecipePathDelete(r, state, makeBaseData))
 	}
 }
 

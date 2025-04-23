@@ -1,5 +1,6 @@
 {{define "body"}}
-    <form method="POST" class="recipe-form">
+    <div id="error" class="no-print" style="margin-bottom: 1em;">{{.Error}}</div>
+    <form method="post" class="recipe-form">
         {{ .CsrfField }}
         <p>Are you sure you want to delete <strong>{{.Name}}</strong>?</p>
         <div style="display: flex; align-items: center; gap: 1rem;">

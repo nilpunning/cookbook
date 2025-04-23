@@ -32,6 +32,7 @@ func ExclusiveWriteFile(name string, data []byte, perm os.FileMode) error {
 }
 
 type response struct {
+	Title        string
 	Error        string
 	StatusCode   int
 	RedirectPath string
@@ -41,6 +42,20 @@ type recipeResponse struct {
 	response
 	Name string
 	Body string
+}
+
+func errorResponse(statusCode int, msg string) response {
+	statusText := http.StatusText(statusCode)
+	errMsg := statusText
+	if msg != "" {
+		errMsg = errMsg + ": " + msg
+	}
+
+	return response{
+		Title:      statusText,
+		Error:      errMsg,
+		StatusCode: statusCode,
+	}
 }
 
 func handleRecipeGet(state core.State, r *http.Request) recipeResponse {
@@ -53,13 +68,13 @@ func handleRecipeGet(state core.State, r *http.Request) recipeResponse {
 			llm, err := core.LLMModel(r.Context(), state.Config)
 			if err != nil {
 				slog.Error(err.Error())
-				return recipeResponse{response: response{Error: err.Error(), StatusCode: http.StatusInternalServerError}}
+				return recipeResponse{response: errorResponse(http.StatusInternalServerError, err.Error())}
 			}
 
 			recipe, err := core.Import(r.Context(), llm, core.HTTPRequest, importURL)
 			if err != nil {
 				slog.Error(err.Error())
-				return recipeResponse{response: response{Error: err.Error(), StatusCode: http.StatusInternalServerError}}
+				return recipeResponse{response: errorResponse(http.StatusInternalServerError, err.Error())}
 			}
 			if recipe != nil {
 				name = recipe.Name
@@ -73,14 +88,14 @@ func handleRecipeGet(state core.State, r *http.Request) recipeResponse {
 func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipeResponse {
 	if err := r.ParseForm(); err != nil {
 		slog.Error(err.Error())
-		return recipeResponse{response: response{Error: "Bad Request: " + err.Error(), StatusCode: http.StatusBadRequest}}
+		return recipeResponse{response: errorResponse(http.StatusBadRequest, err.Error())}
 	}
 
 	name := filepath.Base(r.FormValue("name"))
 	body := r.FormValue("body")
 
 	if name == "." || name == string(filepath.Separator) {
-		return recipeResponse{response: response{Error: "Name is required", StatusCode: http.StatusBadRequest}, Body: body}
+		return recipeResponse{response: errorResponse(http.StatusBadRequest, "name is required"), Body: body}
 	}
 
 	filename := name + core.RecipeExt
@@ -94,22 +109,16 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 	if err := writeFn(fp, []byte(body), 0644); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return recipeResponse{
-				response: response{
-					Error:      "A recipe with the name already exists.",
-					StatusCode: http.StatusConflict,
-				},
-				Name: name,
-				Body: body,
+				response: errorResponse(http.StatusConflict, "A recipe with the name already exists."),
+				Name:     name,
+				Body:     body,
 			}
 		} else {
 			slog.Error(err.Error())
 			return recipeResponse{
-				response: response{
-					Error:      "Unexpected Error: " + err.Error(),
-					StatusCode: http.StatusInternalServerError,
-				},
-				Name: name,
-				Body: body,
+				response: errorResponse(http.StatusInternalServerError, err.Error()),
+				Name:     name,
+				Body:     body,
 			}
 		}
 	}
@@ -119,12 +128,9 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 		if err := os.Remove(prevFp); err != nil {
 			slog.Error(err.Error())
 			return recipeResponse{
-				response: response{
-					Error:      "Unexpected Error: " + err.Error(),
-					StatusCode: http.StatusInternalServerError,
-				},
-				Name: name,
-				Body: body,
+				response: errorResponse(http.StatusInternalServerError, err.Error()),
+				Name:     name,
+				Body:     body,
 			}
 		}
 	}
@@ -134,40 +140,42 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 	return recipeResponse{response: response{RedirectPath: "/recipe/" + escapedPath}}
 }
 
-type templateData interface {
+type responser interface {
 	getResponse() response
+}
+
+func (r response) getResponse() response {
+	return r
 }
 
 type recipeTemplateData struct {
 	baseData
 	recipeResponse
 	CsrfField template.HTML
-	Title     string
 	CancelUrl string
 	DeleteUrl string
-}
-
-func (d recipeTemplateData) getResponse() response {
-	return d.recipeResponse.response
 }
 
 type importTemplateData struct {
 	baseData
 	response
 	CsrfField template.HTML
-	Title     string
 	CancelUrl string
 }
 
-func (d importTemplateData) getResponse() response {
-	return d.response
+type recipePathDeleteTemplateData struct {
+	baseData
+	response
+	CsrfField template.HTML
+	Name      string
+	Webpath   string
 }
 
 func writeResponse(
 	w http.ResponseWriter,
 	r *http.Request,
 	template *template.Template,
-	data templateData,
+	data responser,
 ) {
 	isHtmx, _ := htmx(r)
 	resp := data.getResponse()
@@ -175,49 +183,21 @@ func writeResponse(
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized:
 		http.Error(w, resp.Error, resp.StatusCode)
+
 	case isHtmx && resp.Error != "":
 		http.Error(w, resp.Error, resp.StatusCode)
+
 	case isHtmx && resp.RedirectPath != "":
 		w.Header().Set("HX-Location", resp.RedirectPath)
 		w.WriteHeader(http.StatusOK)
+
 	case !isHtmx && resp.RedirectPath != "":
 		w.Header().Set("Location", resp.RedirectPath)
 		w.WriteHeader(http.StatusSeeOther)
+
 	default:
 		if err := template.Execute(w, data); err != nil {
 			slog.Error(err.Error())
 		}
-	}
-}
-
-func errMsg(e string, msg string) string {
-	errMsg := e
-	if msg != "" {
-		errMsg = errMsg + ": " + msg
-	}
-	return errMsg
-}
-
-func recipeTemplateDataError(data baseData, statusCode int, e string, msg string) recipeTemplateData {
-	return recipeTemplateData{
-		baseData: data,
-		recipeResponse: recipeResponse{
-			response: response{
-				Error:      errMsg(e, msg),
-				StatusCode: statusCode,
-			},
-		},
-		Title: e,
-	}
-}
-
-func importTemplateDataError(data baseData, statusCode int, e string, msg string) importTemplateData {
-	return importTemplateData{
-		baseData: data,
-		response: response{
-			Error:      errMsg(e, msg),
-			StatusCode: statusCode,
-		},
-		Title: e,
 	}
 }
