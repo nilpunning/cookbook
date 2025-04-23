@@ -31,12 +31,16 @@ func ExclusiveWriteFile(name string, data []byte, perm os.FileMode) error {
 	return err
 }
 
-type recipeResponse struct {
-	Name         string
-	Body         string
+type response struct {
 	Error        string
 	StatusCode   int
 	RedirectPath string
+}
+
+type recipeResponse struct {
+	response
+	Name string
+	Body string
 }
 
 func handleRecipeGet(state core.State, r *http.Request) recipeResponse {
@@ -49,13 +53,13 @@ func handleRecipeGet(state core.State, r *http.Request) recipeResponse {
 			llm, err := core.LLMModel(r.Context(), state.Config)
 			if err != nil {
 				slog.Error(err.Error())
-				return recipeResponse{Error: err.Error(), StatusCode: http.StatusInternalServerError}
+				return recipeResponse{response: response{Error: err.Error(), StatusCode: http.StatusInternalServerError}}
 			}
 
 			recipe, err := core.Import(r.Context(), llm, core.HTTPRequest, importURL)
 			if err != nil {
 				slog.Error(err.Error())
-				return recipeResponse{Error: err.Error(), StatusCode: http.StatusInternalServerError}
+				return recipeResponse{response: response{Error: err.Error(), StatusCode: http.StatusInternalServerError}}
 			}
 			if recipe != nil {
 				name = recipe.Name
@@ -69,14 +73,14 @@ func handleRecipeGet(state core.State, r *http.Request) recipeResponse {
 func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipeResponse {
 	if err := r.ParseForm(); err != nil {
 		slog.Error(err.Error())
-		return recipeResponse{Error: "Bad Request: " + err.Error(), StatusCode: http.StatusBadRequest}
+		return recipeResponse{response: response{Error: "Bad Request: " + err.Error(), StatusCode: http.StatusBadRequest}}
 	}
 
 	name := filepath.Base(r.FormValue("name"))
 	body := r.FormValue("body")
 
 	if name == "." || name == string(filepath.Separator) {
-		return recipeResponse{Body: body, Error: "Name is required", StatusCode: http.StatusBadRequest}
+		return recipeResponse{response: response{Error: "Name is required", StatusCode: http.StatusBadRequest}, Body: body}
 	}
 
 	filename := name + core.RecipeExt
@@ -90,17 +94,22 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 	if err := writeFn(fp, []byte(body), 0644); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return recipeResponse{
-				Name:       name,
-				Body:       body,
-				Error:      "A recipe with the name already exists.",
-				StatusCode: http.StatusConflict}
+				response: response{
+					Error:      "A recipe with the name already exists.",
+					StatusCode: http.StatusConflict,
+				},
+				Name: name,
+				Body: body,
+			}
 		} else {
 			slog.Error(err.Error())
 			return recipeResponse{
-				Name:       name,
-				Body:       body,
-				Error:      "Unexpected Error: " + err.Error(),
-				StatusCode: http.StatusInternalServerError,
+				response: response{
+					Error:      "Unexpected Error: " + err.Error(),
+					StatusCode: http.StatusInternalServerError,
+				},
+				Name: name,
+				Body: body,
 			}
 		}
 	}
@@ -110,21 +119,27 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 		if err := os.Remove(prevFp); err != nil {
 			slog.Error(err.Error())
 			return recipeResponse{
-				Name:       name,
-				Body:       body,
-				Error:      "Unexpected Error: " + err.Error(),
-				StatusCode: http.StatusInternalServerError,
+				response: response{
+					Error:      "Unexpected Error: " + err.Error(),
+					StatusCode: http.StatusInternalServerError,
+				},
+				Name: name,
+				Body: body,
 			}
 		}
 	}
 
 	escapedPath := url.PathEscape(core.NameToWebpath(name))
 
-	return recipeResponse{RedirectPath: escapedPath}
+	return recipeResponse{response: response{RedirectPath: "/recipe/" + escapedPath}}
+}
+
+type templateData interface {
+	getResponse() response
 }
 
 type recipeTemplateData struct {
-	baseContext
+	baseData
 	recipeResponse
 	CsrfField template.HTML
 	Title     string
@@ -132,38 +147,75 @@ type recipeTemplateData struct {
 	DeleteUrl string
 }
 
-func writeRecipeResponse(
+func (d recipeTemplateData) getResponse() response {
+	return d.recipeResponse.response
+}
+
+type importTemplateData struct {
+	baseData
+	response
+	CsrfField template.HTML
+	Title     string
+	CancelUrl string
+}
+
+func (d importTemplateData) getResponse() response {
+	return d.response
+}
+
+func writeResponse(
 	w http.ResponseWriter,
 	r *http.Request,
-	recipeFormTemplate *template.Template,
-	data recipeTemplateData,
+	template *template.Template,
+	data templateData,
 ) {
 	isHtmx, _ := htmx(r)
+	resp := data.getResponse()
+
 	switch {
-	case isHtmx && data.Error != "":
-		http.Error(w, data.Error, data.StatusCode)
-	case isHtmx && data.RedirectPath != "":
-		w.Header().Set("HX-Location", "/recipe/"+data.RedirectPath)
+	case resp.StatusCode == http.StatusUnauthorized:
+		http.Error(w, resp.Error, resp.StatusCode)
+	case isHtmx && resp.Error != "":
+		http.Error(w, resp.Error, resp.StatusCode)
+	case isHtmx && resp.RedirectPath != "":
+		w.Header().Set("HX-Location", resp.RedirectPath)
 		w.WriteHeader(http.StatusOK)
-	case !isHtmx && data.RedirectPath != "":
-		w.Header().Set("Location", "/recipe/"+data.RedirectPath)
+	case !isHtmx && resp.RedirectPath != "":
+		w.Header().Set("Location", resp.RedirectPath)
 		w.WriteHeader(http.StatusSeeOther)
 	default:
-		if err := recipeFormTemplate.Execute(w, data); err != nil {
+		if err := template.Execute(w, data); err != nil {
 			slog.Error(err.Error())
 		}
 	}
 }
 
-func recipeResponseError(bc baseContext, e string, msg string, statusCode int) recipeTemplateData {
-	err := e
+func errMsg(e string, msg string) string {
+	errMsg := e
 	if msg != "" {
-		err = err + ": " + msg
+		errMsg = errMsg + ": " + msg
 	}
+	return errMsg
+}
+
+func recipeTemplateDataError(data baseData, statusCode int, e string, msg string) recipeTemplateData {
 	return recipeTemplateData{
-		baseContext: bc,
+		baseData: data,
 		recipeResponse: recipeResponse{
-			Error:      err,
+			response: response{
+				Error:      errMsg(e, msg),
+				StatusCode: statusCode,
+			},
+		},
+		Title: e,
+	}
+}
+
+func importTemplateDataError(data baseData, statusCode int, e string, msg string) importTemplateData {
+	return importTemplateData{
+		baseData: data,
+		response: response{
+			Error:      errMsg(e, msg),
 			StatusCode: statusCode,
 		},
 		Title: e,
