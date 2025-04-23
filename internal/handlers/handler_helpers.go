@@ -124,55 +124,48 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 }
 
 type recipeTemplateData struct {
+	baseContext
+	recipeResponse
 	CsrfField template.HTML
 	Title     string
 	CancelUrl string
 	DeleteUrl string
 }
 
-func makeWriteRecipeResponse(w http.ResponseWriter, r *http.Request, recipeFormTemplate *template.Template, bc baseContext) func(resp recipeResponse, makeTemplateData func() recipeTemplateData) {
-	return func(resp recipeResponse, makeTemplateData func() recipeTemplateData) {
-		isHtmx, _ := htmx(r)
-		switch {
-		case isHtmx && resp.Error != "":
-			http.Error(w, resp.Error, resp.StatusCode)
-		case isHtmx && resp.RedirectPath != "":
-			w.Header().Set("HX-Location", "/recipe/"+resp.RedirectPath)
-			w.WriteHeader(http.StatusOK)
-		case !isHtmx && resp.RedirectPath != "":
-			w.Header().Set("Location", "/recipe/"+resp.RedirectPath)
-			w.WriteHeader(http.StatusSeeOther)
-		default:
-			data := struct {
-				baseContext
-				recipeResponse
-				recipeTemplateData
-			}{
-				baseContext:        bc,
-				recipeResponse:     resp,
-				recipeTemplateData: makeTemplateData(),
-			}
-			if err := recipeFormTemplate.Execute(w, data); err != nil {
-				slog.Error(err.Error())
-			}
+func writeRecipeResponse(
+	w http.ResponseWriter,
+	r *http.Request,
+	recipeFormTemplate *template.Template,
+	data recipeTemplateData,
+) {
+	isHtmx, _ := htmx(r)
+	switch {
+	case isHtmx && data.Error != "":
+		http.Error(w, data.Error, data.StatusCode)
+	case isHtmx && data.RedirectPath != "":
+		w.Header().Set("HX-Location", "/recipe/"+data.RedirectPath)
+		w.WriteHeader(http.StatusOK)
+	case !isHtmx && data.RedirectPath != "":
+		w.Header().Set("Location", "/recipe/"+data.RedirectPath)
+		w.WriteHeader(http.StatusSeeOther)
+	default:
+		if err := recipeFormTemplate.Execute(w, data); err != nil {
+			slog.Error(err.Error())
 		}
 	}
 }
 
-func makeWriteRecipeResponseError(writeRecipeResponse func(resp recipeResponse, makeTemplateData func() recipeTemplateData)) func(e string, msg string, statusCode int) {
-	return func(e string, msg string, statusCode int) {
-		err := e
-		if msg != "" {
-			err = err + ": " + msg
-		}
-		writeRecipeResponse(
-			recipeResponse{
-				Error:      err,
-				StatusCode: statusCode,
-			},
-			func() recipeTemplateData {
-				return recipeTemplateData{Title: e}
-			},
-		)
+func recipeResponseError(bc baseContext, e string, msg string, statusCode int) recipeTemplateData {
+	err := e
+	if msg != "" {
+		err = err + ": " + msg
+	}
+	return recipeTemplateData{
+		baseContext: bc,
+		recipeResponse: recipeResponse{
+			Error:      err,
+			StatusCode: statusCode,
+		},
+		Title: e,
 	}
 }

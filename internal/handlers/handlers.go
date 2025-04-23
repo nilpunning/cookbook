@@ -125,96 +125,95 @@ func makeHandleRecipePath(state core.State, makeBaseContext makeBaseContext) htt
 	}
 }
 
+func handleRecipe(r *http.Request, state core.State, makeBaseContext makeBaseContext) recipeTemplateData {
+	bc := makeBaseContext(r)
+	if !bc.IsAuthenticated {
+		return recipeResponseError(bc, "Unauthorized", "", http.StatusUnauthorized)
+	}
+
+	var resp recipeResponse
+	switch r.Method {
+	case "GET":
+		resp = handleRecipeGet(state, r)
+	case "POST":
+		resp = handleRecipePost(state, r, "")
+	default:
+		resp = recipeResponse{
+			Error:      "Method Not Allowed",
+			StatusCode: http.StatusMethodNotAllowed,
+		}
+	}
+
+	return recipeTemplateData{
+		baseContext:    bc,
+		recipeResponse: resp,
+		CsrfField:      csrf.TemplateField(r),
+		Title:          "Add Recipe",
+		CancelUrl:      "/",
+	}
+}
+
 func makeHandleRecipe(state core.State, makeBaseContext makeBaseContext, recipeFormTemplate *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		bc := makeBaseContext(r)
-		writeRecipeResponse := makeWriteRecipeResponse(w, r, recipeFormTemplate, bc)
-		writeError := makeWriteRecipeResponseError(writeRecipeResponse)
-		if !bc.IsAuthenticated {
-			writeError("Unauthorized", "", http.StatusUnauthorized)
-			return
-		}
+		writeRecipeResponse(w, r, recipeFormTemplate, handleRecipe(r, state, makeBaseContext))
+	}
+}
 
-		var resp recipeResponse
-		switch r.Method {
-		case "GET":
-			resp = handleRecipeGet(state, r)
-		case "POST":
-			resp = handleRecipePost(state, r, "")
-		default:
+func handleRecipePathEdit(r *http.Request, state core.State, makeBaseContext makeBaseContext) recipeTemplateData {
+	bc := makeBaseContext(r)
+	if !bc.IsAuthenticated {
+		return recipeResponseError(bc, "Unauthorized", "", http.StatusUnauthorized)
+	}
+
+	webpath := r.PathValue("path")
+	filename, name, _, err := search.GetRecipe(state.Index, webpath)
+
+	if err == search.ErrNotFound {
+		return recipeResponseError(bc, "Not Found", "", http.StatusNotFound)
+	}
+	if err != nil {
+		slog.Error(err.Error())
+		return recipeResponseError(bc, "Unexpected Error", err.Error(), http.StatusInternalServerError)
+	}
+
+	var resp recipeResponse
+	switch r.Method {
+	case "GET":
+		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
+		md, err := os.ReadFile(fp)
+		if err != nil {
+			slog.Error(err.Error())
 			resp = recipeResponse{
-				Error:      "Method Not Allowed",
-				StatusCode: http.StatusMethodNotAllowed,
+				Error:      "Unexpected Error: " + err.Error(),
+				StatusCode: http.StatusInternalServerError,
+			}
+		} else {
+			resp = recipeResponse{
+				Name: name,
+				Body: string(md),
 			}
 		}
+	case "POST":
+		resp = handleRecipePost(state, r, filename)
+	default:
+		resp = recipeResponse{
+			Error:      "Method Not Allowed",
+			StatusCode: http.StatusMethodNotAllowed,
+		}
+	}
 
-		writeRecipeResponse(resp, func() recipeTemplateData {
-			return recipeTemplateData{
-				CsrfField: csrf.TemplateField(r),
-				Title:     "Add Recipe",
-				CancelUrl: "/",
-			}
-		})
+	return recipeTemplateData{
+		recipeResponse: resp,
+		CsrfField:      csrf.TemplateField(r),
+		Title:          "Edit " + name,
+		CancelUrl:      "/recipe/" + webpath,
+		DeleteUrl:      "/recipe/" + webpath + "/delete",
 	}
 }
 
 func makeHandleRecipePathEdit(state core.State, makeBaseContext makeBaseContext, recipeFormTemplate *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		bc := makeBaseContext(r)
-		writeRecipeResponse := makeWriteRecipeResponse(w, r, recipeFormTemplate, bc)
-		writeError := makeWriteRecipeResponseError(writeRecipeResponse)
-		if !bc.IsAuthenticated {
-			writeError("Unauthorized", "", http.StatusUnauthorized)
-			return
-		}
-
-		webpath := r.PathValue("path")
-		filename, name, _, err := search.GetRecipe(state.Index, webpath)
-
-		if err == search.ErrNotFound {
-			writeError("Not Found", "", http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			slog.Error(err.Error())
-			writeError("Unexpected Error", err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		var resp recipeResponse
-		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
-		switch r.Method {
-		case "GET":
-			md, err := os.ReadFile(fp)
-			if err != nil {
-				slog.Error(err.Error())
-				resp = recipeResponse{
-					Error:      "Unexpected Error: " + err.Error(),
-					StatusCode: http.StatusInternalServerError,
-				}
-			} else {
-				resp = recipeResponse{
-					Name: name,
-					Body: string(md),
-				}
-			}
-		case "POST":
-			resp = handleRecipePost(state, r, filename)
-		default:
-			resp = recipeResponse{
-				Error:      "Method Not Allowed",
-				StatusCode: http.StatusMethodNotAllowed,
-			}
-		}
-
-		writeRecipeResponse(resp, func() recipeTemplateData {
-			return recipeTemplateData{
-				CsrfField: csrf.TemplateField(r),
-				Title:     "Edit " + name,
-				CancelUrl: "/recipe/" + webpath,
-				DeleteUrl: "/recipe/" + webpath + "/delete",
-			}
-		})
+		writeRecipeResponse(w, r, recipeFormTemplate, handleRecipePathEdit(r, state, makeBaseContext))
 	}
 }
 
