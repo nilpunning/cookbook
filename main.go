@@ -21,10 +21,26 @@ import (
 func serve(configPath string) {
 	cfg := core.LoadConfig(configPath)
 
+	var authentication core.Auth
+	if cfg.OIDC != nil {
+		authentication = core.Auth{
+			AuthInfo:    core.NewAuthInfo("/auth/oidc"),
+			AddHandlers: auth.AddOIDCBasedHandlers,
+		}
+	} else if cfg.FormBasedAuthUsers != nil {
+		authentication = core.Auth{
+			AuthInfo:    core.NewAuthInfo("/auth/form"),
+			AddHandlers: auth.AddFormBasedHandlers,
+		}
+	} else {
+		authentication = core.Auth{AddHandlers: core.AddHandlersNop}
+	}
+
 	var state = core.State{
 		Index:        search.NewIndex(cfg.Server.Language),
 		SessionStore: auth.NewSessionStore(cfg.Server.SessionSecrets, cfg.Server.SecureCookies),
 		Config:       cfg,
+		Auth:         authentication,
 	}
 	defer state.Index.Close()
 
@@ -36,15 +52,8 @@ func serve(configPath string) {
 	fs := http.FileServer(http.Dir("static"))
 	serveMux.Handle("/", fs)
 
-	var loginURL, logoutURL string
-	if cfg.OIDC != nil {
-		loginURL, logoutURL = auth.AddOIDCAuth(serveMux, state, "/auth/oidc")
-	} else {
-		if cfg.FormBasedAuthUsers != nil {
-			loginURL, logoutURL = auth.AddFormBasedAuth(serveMux, state, "/auth/form")
-		}
-	}
-	handlers.AddHandlers(serveMux, state, loginURL, logoutURL)
+	authentication.AddHandlers(state, serveMux)
+	handlers.AddHandlers(state, serveMux)
 
 	csrfKey, err := hex.DecodeString(state.Config.Server.CSRFKey)
 	if err != nil {

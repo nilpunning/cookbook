@@ -60,23 +60,22 @@ func ComparePasswordHash(hashedPassword string, password string) bool {
 	return err == nil
 }
 
-func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (string, string) {
+func AddFormBasedHandlers(state core.State, serveMux *http.ServeMux) {
 	loginTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/login.html",
 	))
 
-	loginURL := mountPoint + "/"
-	serveMux.HandleFunc(loginURL, func(w http.ResponseWriter, r *http.Request) {
+	serveMux.HandleFunc(state.Auth.LoginUrl, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			data := struct {
-				ShowAuth  bool
+				HasAuth   bool
 				Title     string
 				CsrfField template.HTML
 				Username  string
 				Error     string
 			}{
-				ShowAuth:  false,
+				HasAuth:   false,
 				Title:     "Login",
 				CsrfField: csrf.TemplateField(r),
 			}
@@ -100,13 +99,13 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 
 		invalid := func() {
 			data := struct {
-				ShowAuth  bool
+				HasAuth   bool
 				Title     string
 				CsrfField template.HTML
 				Username  string
 				Error     string
 			}{
-				ShowAuth:  false,
+				HasAuth:   false,
 				Title:     "Login",
 				CsrfField: csrf.TemplateField(r),
 				Username:  username,
@@ -149,8 +148,7 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 		invalid()
 	})
 
-	logoutURL := mountPoint + "/logout"
-	serveMux.HandleFunc(logoutURL, func(w http.ResponseWriter, r *http.Request) {
+	serveMux.HandleFunc(state.Auth.LogoutUrl, func(w http.ResponseWriter, r *http.Request) {
 		err := ClearSession(state.SessionStore, r, w)
 		if err != nil {
 			slog.Error(err.Error())
@@ -159,6 +157,4 @@ func AddFormBasedAuth(serveMux *http.ServeMux, state core.State, mountPoint stri
 		}
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
-
-	return loginURL, logoutURL
 }

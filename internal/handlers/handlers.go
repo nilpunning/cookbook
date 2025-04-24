@@ -14,17 +14,26 @@ import (
 	"github.com/gorilla/csrf"
 )
 
-type baseData struct {
-	ShowAuth        bool
-	ShowImport      bool
+type stateData struct {
+	HasAuth         bool
+	HasImport       bool
 	IsAuthenticated bool
 	LoginUrl        string
 	LogoutUrl       string
 }
 
-type makeBaseData func(r *http.Request) baseData
+func makeStateData(state core.State, r *http.Request) stateData {
+	hasAuth := state.Auth.LoginUrl != "" && state.Auth.LogoutUrl != ""
+	return stateData{
+		HasAuth:         hasAuth,
+		HasImport:       hasAuth && state.Config.Server.LLM != nil,
+		IsAuthenticated: hasAuth && auth.IsAuthenticated(state.SessionStore, r),
+		LoginUrl:        state.Auth.LoginUrl,
+		LogoutUrl:       state.Auth.LogoutUrl,
+	}
+}
 
-func makeHandleIndex(state core.State, makeBaseData makeBaseData) http.HandlerFunc {
+func makeHandleIndex(state core.State) http.HandlerFunc {
 	indexTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/index.html",
@@ -39,15 +48,15 @@ func makeHandleIndex(state core.State, makeBaseData makeBaseData) http.HandlerFu
 		}
 
 		data := struct {
-			baseData
+			stateData
 			Recipes []search.SearchResult
 			Tags    []search.RecipesGroupedByTag
 			Title   string
 			Query   string
 		}{
-			baseData: makeBaseData(r),
-			Title:    "Recipes",
-			Query:    query,
+			stateData: makeStateData(state, r),
+			Title:     "Recipes",
+			Query:     query,
 		}
 
 		if query != "" {
@@ -88,7 +97,7 @@ func makeHandleIndex(state core.State, makeBaseData makeBaseData) http.HandlerFu
 	}
 }
 
-func makeHandleRecipePath(state core.State, makeBaseData makeBaseData) http.HandlerFunc {
+func makeHandleRecipePath(state core.State) http.HandlerFunc {
 	recipeTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/recipe.html",
@@ -104,17 +113,17 @@ func makeHandleRecipePath(state core.State, makeBaseData makeBaseData) http.Hand
 			http.Error(w, err.Error(), http.StatusNotFound)
 		case nil:
 			data := struct {
-				baseData
+				stateData
 				Title   string
 				Name    string
 				Webpath string
 				Body    template.HTML
 			}{
-				baseData: makeBaseData(r),
-				Title:    name,
-				Name:     name,
-				Webpath:  webpath,
-				Body:     template.HTML(html),
+				stateData: makeStateData(state, r),
+				Title:     name,
+				Name:      name,
+				Webpath:   webpath,
+				Body:      template.HTML(html),
 			}
 			if err := recipeTemplate.Execute(w, data); err != nil {
 				slog.Error(err.Error())
@@ -125,8 +134,8 @@ func makeHandleRecipePath(state core.State, makeBaseData makeBaseData) http.Hand
 	}
 }
 
-func handleRecipe(r *http.Request, state core.State, makeBaseData makeBaseData) recipeTemplateData {
-	data := recipeTemplateData{baseData: makeBaseData(r)}
+func handleRecipe(state core.State, r *http.Request) recipeTemplateData {
+	data := recipeTemplateData{stateData: makeStateData(state, r)}
 
 	if !data.IsAuthenticated {
 		data.response = errorResponse(http.StatusUnauthorized, "")
@@ -149,14 +158,14 @@ func handleRecipe(r *http.Request, state core.State, makeBaseData makeBaseData) 
 	return data
 }
 
-func makeHandleRecipe(state core.State, makeBaseData makeBaseData, recipeFormTemplate *template.Template) http.HandlerFunc {
+func makeHandleRecipe(state core.State, recipeFormTemplate *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, recipeFormTemplate, handleRecipe(r, state, makeBaseData))
+		writeResponse(w, r, recipeFormTemplate, handleRecipe(state, r))
 	}
 }
 
-func handleRecipePathEdit(r *http.Request, state core.State, makeBaseData makeBaseData) recipeTemplateData {
-	data := recipeTemplateData{baseData: makeBaseData(r)}
+func handleRecipePathEdit(state core.State, r *http.Request) recipeTemplateData {
+	data := recipeTemplateData{stateData: makeStateData(state, r)}
 
 	if !data.IsAuthenticated {
 		data.response = errorResponse(http.StatusUnauthorized, "")
@@ -190,6 +199,10 @@ func handleRecipePathEdit(r *http.Request, state core.State, makeBaseData makeBa
 				Body: string(md),
 			}
 		}
+		data.Title = "Edit " + name
+		data.CsrfField = csrf.TemplateField(r)
+		data.CancelUrl = "/recipe/" + webpath
+		data.DeleteUrl = "/recipe/" + webpath + "/delete"
 	case "POST":
 		data.recipeResponse = handleRecipePost(state, r, filename)
 	default:
@@ -197,25 +210,25 @@ func handleRecipePathEdit(r *http.Request, state core.State, makeBaseData makeBa
 		return data
 	}
 
-	data.Title = "Edit " + name
-	data.CsrfField = csrf.TemplateField(r)
-	data.CancelUrl = "/recipe/" + webpath
-	data.DeleteUrl = "/recipe/" + webpath + "/delete"
-
 	return data
 }
 
-func makeHandleRecipePathEdit(state core.State, makeBaseData makeBaseData, recipeFormTemplate *template.Template) http.HandlerFunc {
+func makeHandleRecipePathEdit(state core.State, recipeFormTemplate *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, recipeFormTemplate, handleRecipePathEdit(r, state, makeBaseData))
+		writeResponse(w, r, recipeFormTemplate, handleRecipePathEdit(state, r))
 	}
 }
 
-func handleImport(r *http.Request, makeBaseData makeBaseData) importTemplateData {
-	data := importTemplateData{baseData: makeBaseData(r)}
+func handleImport(state core.State, r *http.Request) importTemplateData {
+	data := importTemplateData{stateData: makeStateData(state, r)}
 
 	if !data.IsAuthenticated {
 		data.response = errorResponse(http.StatusUnauthorized, "")
+		return data
+	}
+
+	if !data.HasImport {
+		data.response = errorResponse(http.StatusForbidden, "import not configured")
 		return data
 	}
 
@@ -234,26 +247,26 @@ func handleImport(r *http.Request, makeBaseData makeBaseData) importTemplateData
 		u := r.FormValue("url")
 		escapedURL := url.QueryEscape(u)
 
-		data.response.RedirectPath = "/import?url=" + escapedURL
+		data.RedirectPath = "/recipe?import=" + escapedURL
 	default:
 		data.response = errorResponse(http.StatusMethodNotAllowed, r.Method)
 	}
 	return data
 }
 
-func makeHandleImport(makeBaseData makeBaseData) http.HandlerFunc {
+func makeHandleImport(state core.State) http.HandlerFunc {
 	importTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/import.html",
 	))
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, importTemplate, handleImport(r, makeBaseData))
+		writeResponse(w, r, importTemplate, handleImport(state, r))
 	}
 }
 
-func handleRecipePathDelete(r *http.Request, state core.State, makeBaseData makeBaseData) recipePathDeleteTemplateData {
-	data := recipePathDeleteTemplateData{baseData: makeBaseData(r)}
+func handleRecipePathDelete(state core.State, r *http.Request) recipePathDeleteTemplateData {
+	data := recipePathDeleteTemplateData{stateData: makeStateData(state, r)}
 
 	if !data.IsAuthenticated {
 		data.response = errorResponse(http.StatusUnauthorized, "")
@@ -305,46 +318,30 @@ func handleRecipePathDelete(r *http.Request, state core.State, makeBaseData make
 	return data
 }
 
-func makeHandleRecipePathDelete(state core.State, makeBaseData makeBaseData) http.HandlerFunc {
+func makeHandleRecipePathDelete(state core.State) http.HandlerFunc {
 	deleteRecipeTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/deleteRecipe.html",
 	))
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, deleteRecipeTemplate, handleRecipePathDelete(r, state, makeBaseData))
+		writeResponse(w, r, deleteRecipeTemplate, handleRecipePathDelete(state, r))
 	}
 }
 
-func AddHandlers(serveMux *http.ServeMux, state core.State, loginURL string, logoutURL string) {
+func AddHandlers(state core.State, serveMux *http.ServeMux) {
 	serveMux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(core.Version))
 	})
-
-	makeBaseData := func(r *http.Request) baseData {
-		return baseData{
-			ShowAuth:        loginURL != "" && logoutURL != "",
-			ShowImport:      state.Config.Server.LLM != nil,
-			IsAuthenticated: auth.IsAuthenticated(state.SessionStore, r),
-			LoginUrl:        loginURL,
-			LogoutUrl:       logoutURL,
-		}
-	}
-
-	serveMux.HandleFunc("/{$}", makeHandleIndex(state, makeBaseData))
-	serveMux.HandleFunc("/recipe/{path}", makeHandleRecipePath(state, makeBaseData))
-
+	serveMux.HandleFunc("/{$}", makeHandleIndex(state))
+	serveMux.HandleFunc("/recipe/{path}", makeHandleRecipePath(state))
 	recipeFormTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/recipeForm.html",
 	))
-	serveMux.HandleFunc("/recipe", makeHandleRecipe(state, makeBaseData, recipeFormTemplate))
-	serveMux.HandleFunc("/recipe/{path}/edit", makeHandleRecipePathEdit(state, makeBaseData, recipeFormTemplate))
-
-	if state.Config.Server.LLM != nil {
-		serveMux.HandleFunc("/import", makeHandleImport(makeBaseData))
-	}
-
-	serveMux.HandleFunc("/recipe/{path}/delete", makeHandleRecipePathDelete(state, makeBaseData))
+	serveMux.HandleFunc("/recipe", makeHandleRecipe(state, recipeFormTemplate))
+	serveMux.HandleFunc("/recipe/{path}/edit", makeHandleRecipePathEdit(state, recipeFormTemplate))
+	serveMux.HandleFunc("/import", makeHandleImport(state))
+	serveMux.HandleFunc("/recipe/{path}/delete", makeHandleRecipePathDelete(state))
 }

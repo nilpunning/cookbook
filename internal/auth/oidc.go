@@ -63,7 +63,7 @@ func setRandomCookie(w http.ResponseWriter, name string) string {
 	return randString
 }
 
-func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (string, string) {
+func AddOIDCBasedHandlers(state core.State, serveMux *http.ServeMux) {
 	ctx := context.Background()
 
 	provider, err := oidc.NewProvider(ctx, state.Config.OIDC.Issuer)
@@ -83,9 +83,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
 	}
 
-	loginURL := mountPoint + "/"
-
-	serveMux.HandleFunc(loginURL, func(w http.ResponseWriter, r *http.Request) {
+	serveMux.HandleFunc(state.Auth.LoginUrl, func(w http.ResponseWriter, r *http.Request) {
 		cookieValue := setRandomCookie(w, "state")
 		nonceValue := setRandomCookie(w, "nonce")
 
@@ -98,7 +96,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		http.Redirect(w, r, config.AuthCodeURL(cookieValue, oidc.Nonce(nonceValue)), http.StatusFound)
 	})
 
-	serveMux.HandleFunc(mountPoint+"/callback", func(w http.ResponseWriter, r *http.Request) {
+	serveMux.HandleFunc(state.Auth.MountPoint+"/callback", func(w http.ResponseWriter, r *http.Request) {
 		stateCookie, err := r.Cookie("state")
 		if err != nil {
 			slog.Error(err.Error())
@@ -181,8 +179,7 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
 
-	logoutURL := mountPoint + "/logout"
-	serveMux.HandleFunc(logoutURL, func(w http.ResponseWriter, r *http.Request) {
+	serveMux.HandleFunc(state.Auth.LogoutUrl, func(w http.ResponseWriter, r *http.Request) {
 		err := ClearSession(state.SessionStore, r, w)
 		if err != nil {
 			slog.Error(err.Error())
@@ -202,6 +199,4 @@ func AddOIDCAuth(serveMux *http.ServeMux, state core.State, mountPoint string) (
 
 		http.Redirect(w, r, logoutURL.String(), http.StatusSeeOther)
 	})
-
-	return loginURL, logoutURL
 }

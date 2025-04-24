@@ -21,10 +21,10 @@
     <header class="no-print">
         <nav style="display: flex; gap: 1rem; align-items: center;">
             <a href="/">Cookbook</a>
-            {{if .ShowAuth}}
+            {{if .HasAuth}}
                 {{if .IsAuthenticated}}
                     <a href="/recipe">Add</a>
-                    {{if .ShowImport}}
+                    {{if .HasImport}}
                         <a href="/import" style="margin-right: auto;">Import</a>
                     {{end}}
                     <a href="{{.LogoutUrl}}" style="margin-left: auto;">Logout</a>

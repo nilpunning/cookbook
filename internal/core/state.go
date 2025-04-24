@@ -2,6 +2,7 @@ package core
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/BurntSushi/toml"
 	"github.com/blevesearch/bleve/v2"
@@ -44,10 +45,32 @@ type Config struct {
 	FormBasedAuthUsers *map[string]string
 }
 
+type AuthInfo struct {
+	MountPoint string
+	LoginUrl   string
+	LogoutUrl  string
+}
+
+func NewAuthInfo(mountPoint string) AuthInfo {
+	return AuthInfo{
+		MountPoint: mountPoint,
+		LoginUrl:   mountPoint + "/login",
+		LogoutUrl:  mountPoint + "/logout",
+	}
+}
+
+type Auth struct {
+	AuthInfo
+	AddHandlers func(state State, mux *http.ServeMux)
+}
+
+func AddHandlersNop(state State, mux *http.ServeMux) {}
+
 type State struct {
 	Index        bleve.Index
 	SessionStore *sessions.CookieStore
 	Config       Config
+	Auth         Auth
 }
 
 func LoadConfig(path string) Config {

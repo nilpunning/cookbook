@@ -149,7 +149,7 @@ func (r response) getResponse() response {
 }
 
 type recipeTemplateData struct {
-	baseData
+	stateData
 	recipeResponse
 	CsrfField template.HTML
 	CancelUrl string
@@ -157,14 +157,14 @@ type recipeTemplateData struct {
 }
 
 type importTemplateData struct {
-	baseData
+	stateData
 	response
 	CsrfField template.HTML
 	CancelUrl string
 }
 
 type recipePathDeleteTemplateData struct {
-	baseData
+	stateData
 	response
 	CsrfField template.HTML
 	Name      string
@@ -181,7 +181,7 @@ func writeResponse(
 	resp := data.getResponse()
 
 	switch {
-	case resp.StatusCode == http.StatusUnauthorized:
+	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
 		http.Error(w, resp.Error, resp.StatusCode)
 
 	case isHtmx && resp.Error != "":
