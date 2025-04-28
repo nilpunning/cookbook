@@ -67,6 +67,11 @@ func AddFormBasedHandlers(state core.State, serveMux *http.ServeMux) {
 	))
 
 	serveMux.HandleFunc(state.Auth.LoginUrl, func(w http.ResponseWriter, r *http.Request) {
+		returnTo := r.URL.Query().Get("return_to")
+		if returnTo == "" {
+			returnTo = "/"
+		}
+
 		if r.Method == "GET" {
 			data := struct {
 				HasAuth   bool
@@ -74,10 +79,12 @@ func AddFormBasedHandlers(state core.State, serveMux *http.ServeMux) {
 				CsrfField template.HTML
 				Username  string
 				Error     string
+				ReturnTo  string
 			}{
 				HasAuth:   false,
 				Title:     "Login",
 				CsrfField: csrf.TemplateField(r),
+				ReturnTo:  returnTo,
 			}
 			if err := loginTemplate.Execute(w, data); err != nil {
 				slog.Error(err.Error())
@@ -96,6 +103,10 @@ func AddFormBasedHandlers(state core.State, serveMux *http.ServeMux) {
 
 		username := r.Form.Get("username")
 		password := r.Form.Get("password")
+		formReturnTo := r.Form.Get("return_to")
+		if formReturnTo == "" {
+			formReturnTo = "/"
+		}
 
 		invalid := func() {
 			data := struct {
@@ -104,12 +115,14 @@ func AddFormBasedHandlers(state core.State, serveMux *http.ServeMux) {
 				CsrfField template.HTML
 				Username  string
 				Error     string
+				ReturnTo  string
 			}{
 				HasAuth:   false,
 				Title:     "Login",
 				CsrfField: csrf.TemplateField(r),
 				Username:  username,
 				Error:     "Invalid username or password",
+				ReturnTo:  formReturnTo,
 			}
 			if err := loginTemplate.Execute(w, data); err != nil {
 				slog.Error(err.Error())
@@ -141,7 +154,7 @@ func AddFormBasedHandlers(state core.State, serveMux *http.ServeMux) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			http.Redirect(w, r, "/", http.StatusSeeOther)
+			http.Redirect(w, r, formReturnTo, http.StatusSeeOther)
 			return
 		}
 

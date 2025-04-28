@@ -2,6 +2,7 @@
 <body>
     <form class="login-form" method="post">
         {{ .CsrfField }}
+        <input type="hidden" name="return_to" value="{{ .ReturnTo }}">
         <input type="text" name="username" placeholder="Username" value="{{.Username}}" required>
         <input type="password" name="password" placeholder="Password" required>
         <div style="display: flex; align-items: center; gap: 1rem;">

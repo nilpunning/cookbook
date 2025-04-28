@@ -63,6 +63,33 @@ func setRandomCookie(w http.ResponseWriter, name string) string {
 	return randString
 }
 
+type loginState struct {
+	State    string `json:"s"`
+	ReturnTo string `json:"r"`
+}
+
+func encodeState(state, returnTo string) (string, error) {
+	ls := loginState{
+		State:    state,
+		ReturnTo: returnTo,
+	}
+	b, err := json.Marshal(ls)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func decodeState(encoded string) (*loginState, error) {
+	b, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, err
+	}
+	var ls loginState
+	err = json.Unmarshal(b, &ls)
+	return &ls, err
+}
+
 func AddOIDCBasedHandlers(state core.State, serveMux *http.ServeMux) {
 	ctx := context.Background()
 
@@ -87,13 +114,25 @@ func AddOIDCBasedHandlers(state core.State, serveMux *http.ServeMux) {
 		cookieValue := setRandomCookie(w, "state")
 		nonceValue := setRandomCookie(w, "nonce")
 
-		err := ClearSession(state.SessionStore, r, w)
+		returnTo := r.URL.Query().Get("return_to")
+		if returnTo == "" {
+			returnTo = "/"
+		}
+
+		encodedState, err := encodeState(cookieValue, returnTo)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, r, config.AuthCodeURL(cookieValue, oidc.Nonce(nonceValue)), http.StatusFound)
+
+		err = ClearSession(state.SessionStore, r, w)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, config.AuthCodeURL(encodedState, oidc.Nonce(nonceValue)), http.StatusFound)
 	})
 
 	serveMux.HandleFunc(state.Auth.MountPoint+"/callback", func(w http.ResponseWriter, r *http.Request) {
@@ -103,25 +142,35 @@ func AddOIDCBasedHandlers(state core.State, serveMux *http.ServeMux) {
 			http.Error(w, "state not found", http.StatusBadRequest)
 			return
 		}
-		if r.URL.Query().Get("state") != stateCookie.Value {
+
+		encodedState := r.URL.Query().Get("state")
+		ls, err := decodeState(encodedState)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, "invalid state", http.StatusBadRequest)
+			return
+		}
+
+		if ls.State != stateCookie.Value {
 			http.Error(w, "state did not match", http.StatusBadRequest)
 			return
 		}
+
 		oauth2Token, err := config.Exchange(ctx, r.URL.Query().Get("code"))
 		if err != nil {
 			slog.Error(err.Error())
-			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 		if !ok {
-			http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
+			http.Error(w, "no id_token field in oauth2 token.", http.StatusInternalServerError)
 			return
 		}
 		idToken, err := verifier.Verify(ctx, rawIDToken)
 		if err != nil {
 			slog.Error(err.Error())
-			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		nonce, err := r.Cookie("nonce")
@@ -176,7 +225,7 @@ func AddOIDCBasedHandlers(state core.State, serveMux *http.ServeMux) {
 			return
 		}
 
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, ls.ReturnTo, http.StatusSeeOther)
 	})
 
 	serveMux.HandleFunc(state.Auth.LogoutUrl, func(w http.ResponseWriter, r *http.Request) {

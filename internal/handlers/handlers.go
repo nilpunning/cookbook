@@ -24,11 +24,15 @@ type stateData struct {
 
 func makeStateData(state core.State, r *http.Request) stateData {
 	hasAuth := state.Auth.LoginUrl != "" && state.Auth.LogoutUrl != ""
+	loginUrl := state.Auth.LoginUrl
+	if hasAuth && r.URL.Path != "/" {
+		loginUrl = state.Auth.LoginUrl + "?return_to=" + url.QueryEscape(r.URL.Path)
+	}
 	return stateData{
 		HasAuth:         hasAuth,
 		HasImport:       hasAuth && state.Config.Server.LLM != nil,
 		IsAuthenticated: hasAuth && auth.IsAuthenticated(state.SessionStore, r),
-		LoginUrl:        state.Auth.LoginUrl,
+		LoginUrl:        loginUrl,
 		LogoutUrl:       state.Auth.LogoutUrl,
 	}
 }
