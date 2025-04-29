@@ -11,6 +11,7 @@
         type="text"
         name="q"
         placeholder="Search recipes..."
+        autofocus
         value="{{.Query}}"
         hx-get="/"
         hx-trigger="input changed delay:250ms, search"
