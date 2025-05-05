@@ -5,8 +5,9 @@ tmp_dir = "tmp"
   cmd = "go build -o ./tmp/main ."
   bin = "./tmp/main -c config.toml"
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "recipes"]
+  exclude_dir = ["tmp", "vendor", "testdata", "recipes"]
   include_ext = ["go", "tpl", "tmpl", "html", "css"]
+  include_file = ["config.toml"]
   exclude_regex = ["_test\\.go"]
 
 [log]
