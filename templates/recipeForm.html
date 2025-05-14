@@ -1,6 +1,19 @@
 {{define "body"}}
 <div hx-ext="response-targets">
-    <div id="error" class="no-print" style="margin-bottom: 1em;">{{.Error}}</div>
+    {{if .ShowDelete}}
+        <div id="delete-popover" popover>
+            <form method="post" class="recipe-form" hx-post="" hx-target-4xx="#delete-error" hx-target-5xx="#delete-error">
+                {{ .CsrfField }}
+                <p>Are you sure you want to delete <strong>{{.Name}}</strong>?</p>
+                <div id="delete-error" class="error no-print" style="margin-bottom: 1em;">{{.Error}}</div>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <button type="submit" name="delete">Delete</button>
+                    <button type="button" popovertarget="delete-popover" popovertargetaction="hide" style="margin-left: auto;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    {{end}}
+    <div id="error" class="error no-print" style="margin-bottom: 1em;">{{.Error}}</div>
     <form method="post" class="recipe-form" hx-post="" hx-target-4xx="#error" hx-target-5xx="#error">
         {{ .CsrfField }}
         <input type="text" name="name" placeholder="Recipe Name" value="{{.Name}}" required>
@@ -8,8 +21,8 @@
         <div style="display: flex; align-items: center; gap: 1rem;">
             <button type="submit">Save</button>
             <a href="{{.CancelUrl}}" style="margin-right: auto;">Cancel</a>
-            {{if .DeleteUrl}}
-                <a href="{{.DeleteUrl}}" style="margin-left: auto;">Delete</a>
+            {{if .ShowDelete}}
+                <button type="button" popovertarget="delete-popover" popovertargetaction="show" style="margin-left: auto;">Delete</button>
             {{end}}
         </div>
     </form>

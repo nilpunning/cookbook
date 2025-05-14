@@ -1,6 +1,6 @@
 {{define "body"}}
 <div hx-ext="response-targets">
-    <div id="error" class="no-print" style="margin-bottom: 1em;">{{.Error}}</div>
+    <div id="error" class="error no-print" style="margin-bottom: 1em;">{{.Error}}</div>
     <form method="post" class="recipe-form" hx-post="" hx-target-4xx="#error" hx-target-5xx="#error">
         {{ .CsrfField }}
         <input type="url" name="url" placeholder="Recipe URL" required>

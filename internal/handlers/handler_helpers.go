@@ -93,6 +93,17 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 
 	name := filepath.Base(r.FormValue("name"))
 	body := r.FormValue("body")
+	delete := r.Form.Has("delete")
+
+	prevFp := filepath.Join(s.Config.Server.RecipesPath, prevFilename)
+
+	if delete {
+		if err := os.Remove(prevFp); err != nil {
+			slog.Error(err.Error())
+			return recipeResponse{response: errorResponse(http.StatusInternalServerError, err.Error()), Name: name, Body: body}
+		}
+		return recipeResponse{response: response{RedirectPath: "/"}}
+	}
 
 	if name == "." || name == string(filepath.Separator) {
 		return recipeResponse{response: errorResponse(http.StatusBadRequest, "name is required"), Body: body}
@@ -124,7 +135,6 @@ func handleRecipePost(s core.State, r *http.Request, prevFilename string) recipe
 	}
 
 	if prevFilename != "" && prevFilename != filename {
-		prevFp := filepath.Join(s.Config.Server.RecipesPath, prevFilename)
 		if err := os.Remove(prevFp); err != nil {
 			slog.Error(err.Error())
 			return recipeResponse{
@@ -151,9 +161,9 @@ func (r response) getResponse() response {
 type recipeTemplateData struct {
 	stateData
 	recipeResponse
-	CsrfField template.HTML
-	CancelUrl string
-	DeleteUrl string
+	CsrfField  template.HTML
+	CancelUrl  string
+	ShowDelete bool
 }
 
 type importTemplateData struct {

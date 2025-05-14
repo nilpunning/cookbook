@@ -153,3 +153,16 @@ th {
   flex-direction: column;
   gap: 0.5rem;
 }
+.error {
+  font-style: italic;
+}
+::backdrop {
+  backdrop-filter: blur(2px);
+}
+#delete-popover {
+  margin-top: 5rem;
+  min-width: 200px;
+  padding: 1rem;
+  border: 2px solid black;
+  border-radius: 5px;
+}

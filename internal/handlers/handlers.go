@@ -206,7 +206,7 @@ func handleRecipePathEdit(state core.State, r *http.Request) recipeTemplateData 
 		data.Title = "Edit " + name
 		data.CsrfField = csrf.TemplateField(r)
 		data.CancelUrl = "/recipe/" + webpath
-		data.DeleteUrl = "/recipe/" + webpath + "/delete"
+		data.ShowDelete = true
 	case "POST":
 		data.recipeResponse = handleRecipePost(state, r, filename)
 	default:
@@ -269,70 +269,6 @@ func makeHandleImport(state core.State) http.HandlerFunc {
 	}
 }
 
-func handleRecipePathDelete(state core.State, r *http.Request) recipePathDeleteTemplateData {
-	data := recipePathDeleteTemplateData{stateData: makeStateData(state, r)}
-
-	if !data.IsAuthenticated {
-		data.response = errorResponse(http.StatusUnauthorized, "")
-		return data
-	}
-
-	webpath := r.PathValue("path")
-
-	switch r.Method {
-	case "GET":
-		_, name, _, err := search.GetRecipe(state.Index, webpath)
-		if err == search.ErrNotFound {
-			data.response = errorResponse(http.StatusNotFound, webpath)
-			return data
-		}
-		if err != nil {
-			slog.Error(err.Error())
-			data.response = errorResponse(http.StatusInternalServerError, err.Error())
-			return data
-		}
-		data.response = response{Title: "Delete " + name + "?"}
-		data.CsrfField = csrf.TemplateField(r)
-		data.Name = name
-		data.Webpath = "/recipe/" + webpath
-	case "POST":
-		filename, _, _, err := search.GetRecipe(state.Index, webpath)
-		if err == search.ErrNotFound {
-			data.response = errorResponse(http.StatusNotFound, webpath)
-			return data
-		}
-		if err != nil {
-			slog.Error(err.Error())
-			data.response = errorResponse(http.StatusInternalServerError, err.Error())
-			return data
-		}
-
-		fp := filepath.Join(state.Config.Server.RecipesPath, filename)
-
-		if err := os.Remove(fp); err != nil {
-			slog.Error(err.Error())
-			data.response = errorResponse(http.StatusInternalServerError, err.Error())
-		}
-
-		data.RedirectPath = "/"
-	default:
-		data.response = errorResponse(http.StatusMethodNotAllowed, r.Method)
-	}
-
-	return data
-}
-
-func makeHandleRecipePathDelete(state core.State) http.HandlerFunc {
-	deleteRecipeTemplate := template.Must(template.ParseFiles(
-		"templates/base.html",
-		"templates/deleteRecipe.html",
-	))
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, deleteRecipeTemplate, handleRecipePathDelete(state, r))
-	}
-}
-
 func AddHandlers(state core.State, serveMux *http.ServeMux) {
 	serveMux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -347,5 +283,4 @@ func AddHandlers(state core.State, serveMux *http.ServeMux) {
 	serveMux.HandleFunc("/recipe", makeHandleRecipe(state, recipeFormTemplate))
 	serveMux.HandleFunc("/recipe/{path}/edit", makeHandleRecipePathEdit(state, recipeFormTemplate))
 	serveMux.HandleFunc("/import", makeHandleImport(state))
-	serveMux.HandleFunc("/recipe/{path}/delete", makeHandleRecipePathDelete(state))
 }
