@@ -59,7 +59,7 @@ func makeHandleIndex(state core.State) http.HandlerFunc {
 			Query   string
 		}{
 			stateData: makeStateData(state, r),
-			Title:     "Recipes",
+			Title:     "Cookbook",
 			Query:     query,
 		}
 
