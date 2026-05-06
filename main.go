@@ -49,9 +49,6 @@ func serve(configPath string) {
 
 	serveMux := http.NewServeMux()
 
-	fs := http.FileServer(http.Dir("static"))
-	serveMux.Handle("/", fs)
-
 	authentication.AddHandlers(state, serveMux)
 	handlers.AddHandlers(state, serveMux)
 

@@ -101,7 +101,24 @@ func makeHandleIndex(state core.State) http.HandlerFunc {
 	}
 }
 
-func makeHandleRecipePath(state core.State) http.HandlerFunc {
+func makeHandleNotFound(state core.State) http.HandlerFunc {
+	t := template.Must(template.ParseFiles("templates/base.html", "templates/notFound.html"))
+	return func(w http.ResponseWriter, r *http.Request) {
+		data := struct {
+			stateData
+			Title string
+		}{
+			stateData: makeStateData(state, r),
+			Title:     "Not Found",
+		}
+		w.WriteHeader(http.StatusNotFound)
+		if err := t.Execute(w, data); err != nil {
+			slog.Error(err.Error())
+		}
+	}
+}
+
+func makeHandleRecipePath(state core.State, handleNotFound http.HandlerFunc) http.HandlerFunc {
 	recipeTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/recipe.html",
@@ -113,8 +130,7 @@ func makeHandleRecipePath(state core.State) http.HandlerFunc {
 		_, name, html, err := search.GetRecipe(state.Index, webpath)
 		switch err {
 		case search.ErrNotFound:
-			slog.Error(err.Error())
-			http.Error(w, err.Error(), http.StatusNotFound)
+			handleNotFound(w, r)
 		case nil:
 			data := struct {
 				stateData
@@ -270,12 +286,17 @@ func makeHandleImport(state core.State) http.HandlerFunc {
 }
 
 func AddHandlers(state core.State, serveMux *http.ServeMux) {
+	handleNotFound := makeHandleNotFound(state)
+
+	serveMux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	serveMux.Handle("/", handleNotFound)
+
 	serveMux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(core.Version))
 	})
 	serveMux.HandleFunc("/{$}", makeHandleIndex(state))
-	serveMux.HandleFunc("/recipe/{path}", makeHandleRecipePath(state))
+	serveMux.HandleFunc("/recipe/{path}", makeHandleRecipePath(state, handleNotFound))
 	recipeFormTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/recipeForm.html",
