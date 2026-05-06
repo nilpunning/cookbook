@@ -186,13 +186,18 @@ func writeResponse(
 	r *http.Request,
 	template *template.Template,
 	data responser,
+	handleUnauthorized http.HandlerFunc,
 ) {
 	isHtmx, _ := htmx(r)
 	resp := data.getResponse()
 
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		http.Error(w, resp.Error, resp.StatusCode)
+		if isHtmx {
+			http.Error(w, resp.Error, resp.StatusCode)
+		} else {
+			handleUnauthorized(w, r)
+		}
 
 	case isHtmx && resp.Error != "":
 		http.Error(w, resp.Error, resp.StatusCode)

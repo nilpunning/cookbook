@@ -118,6 +118,23 @@ func makeHandleNotFound(state core.State) http.HandlerFunc {
 	}
 }
 
+func makeHandleUnauthorized(state core.State) http.HandlerFunc {
+	t := template.Must(template.ParseFiles("templates/base.html", "templates/unauthorized.html"))
+	return func(w http.ResponseWriter, r *http.Request) {
+		data := struct {
+			stateData
+			Title string
+		}{
+			stateData: makeStateData(state, r),
+			Title:     "Unauthorized",
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+		if err := t.Execute(w, data); err != nil {
+			slog.Error(err.Error())
+		}
+	}
+}
+
 func makeHandleRecipePath(state core.State, handleNotFound http.HandlerFunc) http.HandlerFunc {
 	recipeTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
@@ -178,9 +195,9 @@ func handleRecipe(state core.State, r *http.Request) recipeTemplateData {
 	return data
 }
 
-func makeHandleRecipe(state core.State, recipeFormTemplate *template.Template) http.HandlerFunc {
+func makeHandleRecipe(state core.State, recipeFormTemplate *template.Template, handleUnauthorized http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, recipeFormTemplate, handleRecipe(state, r))
+		writeResponse(w, r, recipeFormTemplate, handleRecipe(state, r), handleUnauthorized)
 	}
 }
 
@@ -233,9 +250,9 @@ func handleRecipePathEdit(state core.State, r *http.Request) recipeTemplateData 
 	return data
 }
 
-func makeHandleRecipePathEdit(state core.State, recipeFormTemplate *template.Template) http.HandlerFunc {
+func makeHandleRecipePathEdit(state core.State, recipeFormTemplate *template.Template, handleUnauthorized http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, recipeFormTemplate, handleRecipePathEdit(state, r))
+		writeResponse(w, r, recipeFormTemplate, handleRecipePathEdit(state, r), handleUnauthorized)
 	}
 }
 
@@ -274,19 +291,20 @@ func handleImport(state core.State, r *http.Request) importTemplateData {
 	return data
 }
 
-func makeHandleImport(state core.State) http.HandlerFunc {
+func makeHandleImport(state core.State, handleUnauthorized http.HandlerFunc) http.HandlerFunc {
 	importTemplate := template.Must(template.ParseFiles(
 		"templates/base.html",
 		"templates/import.html",
 	))
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(w, r, importTemplate, handleImport(state, r))
+		writeResponse(w, r, importTemplate, handleImport(state, r), handleUnauthorized)
 	}
 }
 
 func AddHandlers(state core.State, serveMux *http.ServeMux) {
 	handleNotFound := makeHandleNotFound(state)
+	handleUnauthorized := makeHandleUnauthorized(state)
 
 	serveMux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	serveMux.Handle("/", handleNotFound)
@@ -301,7 +319,7 @@ func AddHandlers(state core.State, serveMux *http.ServeMux) {
 		"templates/base.html",
 		"templates/recipeForm.html",
 	))
-	serveMux.HandleFunc("/recipe", makeHandleRecipe(state, recipeFormTemplate))
-	serveMux.HandleFunc("/recipe/{path}/edit", makeHandleRecipePathEdit(state, recipeFormTemplate))
-	serveMux.HandleFunc("/import", makeHandleImport(state))
+	serveMux.HandleFunc("/recipe", makeHandleRecipe(state, recipeFormTemplate, handleUnauthorized))
+	serveMux.HandleFunc("/recipe/{path}/edit", makeHandleRecipePathEdit(state, recipeFormTemplate, handleUnauthorized))
+	serveMux.HandleFunc("/import", makeHandleImport(state, handleUnauthorized))
 }
